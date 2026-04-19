@@ -1,0 +1,4 @@
+@use 'styles/variables' as *;
+
+html, body { height: 100%; margin: 0; padding: 0; }
+body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; background: $color-bg; color: $color-text-on-dark; }

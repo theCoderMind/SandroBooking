@@ -1,0 +1,133 @@
+services:
+
+  # ─── PHP-FPM ────────────────────────────────────────────────────────────────
+  php:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: lysandro_php
+    volumes:
+      - ./backend:/var/www/backend
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
+    environment:
+      APP_ENV: dev
+      DATABASE_URL: "mysql://lysandro:secret@mysql:3306/lysandro?serverVersion=8.0"
+      MESSENGER_TRANSPORT_DSN: "redis://redis:6379/messages"
+      MAILER_DSN: "smtp://mailpit:1025"
+      JWT_SECRET_KEY: "%kernel.project_dir%/config/jwt/private.pem"
+      JWT_PUBLIC_KEY: "%kernel.project_dir%/config/jwt/public.pem"
+      JWT_PASSPHRASE: "lysandro_dev"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - lysandro
+
+  # ─── Nginx ──────────────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: lysandro_nginx
+    ports:
+      - "8000:80"       # Backend API  → http://localhost:8000
+    volumes:
+      - ./backend:/var/www/backend
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - php
+    networks:
+      - lysandro
+
+  # ─── MySQL 8 ────────────────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: lysandro_mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: lysandro
+      MYSQL_USER: lysandro
+      MYSQL_PASSWORD: secret
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "lysandro", "-psecret"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - lysandro
+
+  # ─── Redis (Messenger + Cache) ───────────────────────────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: lysandro_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - lysandro
+
+  # ─── Mailpit (lokaler Mail-Catcher) ─────────────────────────────────────────
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: lysandro_mailpit
+    ports:
+      - "8025:8025"     # Web UI  → http://localhost:8025
+      - "1025:1025"     # SMTP
+    networks:
+      - lysandro
+
+  # ─── phpMyAdmin (Datenbank-GUI) ──────────────────────────────────────────────
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: lysandro_phpmyadmin
+    ports:
+      - "8090:80"       # http://localhost:8090
+    environment:
+      PMA_HOST: mysql
+      PMA_USER: lysandro
+      PMA_PASSWORD: secret
+      UPLOAD_LIMIT: 64M
+    depends_on:
+      - mysql
+    networks:
+      - lysandro
+
+  # ─── Symfony Messenger Worker ────────────────────────────────────────────────
+  messenger_worker:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: lysandro_worker
+    command: ["php", "/var/www/backend/bin/console", "messenger:consume", "async", "--time-limit=3600", "-vv"]
+    volumes:
+      - ./backend:/var/www/backend
+    environment:
+      APP_ENV: dev
+      DATABASE_URL: "mysql://lysandro:secret@mysql:3306/lysandro?serverVersion=8.0"
+      MESSENGER_TRANSPORT_DSN: "redis://redis:6379/messages"
+      MAILER_DSN: "smtp://mailpit:1025"
+    depends_on:
+      - php
+      - redis
+    restart: unless-stopped
+    networks:
+      - lysandro
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  lysandro:
+    driver: bridge

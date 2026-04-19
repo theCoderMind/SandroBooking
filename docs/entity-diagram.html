@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Lysandro — Entity Diagram</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 40px;
+            min-height: 100vh;
+        }
+        h1 {
+            text-align: center;
+            font-size: 26px;
+            margin-bottom: 8px;
+            color: #60a5fa;
+            letter-spacing: 1px;
+        }
+        p.subtitle {
+            text-align: center;
+            color: #64748b;
+            margin-bottom: 40px;
+            font-size: 14px;
+        }
+        .diagram-wrapper {
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 40px 20px;
+            border: 1px solid #334155;
+            overflow-x: auto;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+        .legend {
+            margin-top: 32px;
+            display: flex;
+            gap: 40px;
+            justify-content: center;
+            flex-wrap: wrap;
+            padding: 20px;
+            background: #1e293b;
+            border-radius: 12px;
+            border: 1px solid #334155;
+        }
+        .legend h3 {
+            width: 100%;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+        .badge {
+            padding: 2px 10px;
+            border-radius: 99px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Lysandro — Entity Relationship Diagram</h1>
+<p class="subtitle">Alle Entitäten, Felder und Kardinalitäten im Überblick</p>
+
+<div class="diagram-wrapper">
+    <div class="mermaid">
+classDiagram
+    direction TB
+
+    class Tenant {
+        +UUID id
+        +string name
+        +string slug
+        +string publicKey
+        +string plan
+        +bool active
+        +DateTime createdAt
+    }
+
+    class TenantBranding {
+        +UUID id
+        +string primaryColor
+        +string backgroundColor
+        +string textColor
+        +string fontFamily
+        +string borderRadius
+        +string buttonStyle
+        +string logoUrl
+    }
+
+    class User {
+        +UUID id
+        +string email
+        +string password
+        +string firstName
+        +string lastName
+        +array roles
+        +bool active
+    }
+
+    class Venue {
+        +UUID id
+        +string name
+        +string category
+        +string timezone
+        +string address
+        +int defaultDurationMinutes
+        +int maxAdvanceBookingDays
+        +int minAdvanceBookingHours
+        +bool active
+    }
+
+    class Resource {
+        +UUID id
+        +string name
+        +int capacity
+        +bool active
+    }
+
+    class OpeningHours {
+        +UUID id
+        +int weekday
+        +bool open
+        +string openTime
+        +string closeTime
+        +array breaks
+    }
+
+    class SpecialClosing {
+        +UUID id
+        +Date dateFrom
+        +Date dateTo
+        +string reason
+        +bool fullDay
+        +string openTime
+        +string closeTime
+    }
+
+    class Guest {
+        +UUID id
+        +string name
+        +string email
+        +string phone
+        +bool blocked
+        +int totalReservations
+        +int noShowCount
+    }
+
+    class Reservation {
+        +UUID id
+        +string token
+        +string guestName
+        +string guestEmail
+        +int partySize
+        +DateTime startsAt
+        +DateTime endsAt
+        +string status
+        +string adminNotes
+    }
+
+    Tenant         "1" --> "1"    TenantBranding  : hat Branding
+    Tenant         "1" --> "n"    User            : hat Mitarbeiter
+    Tenant         "1" --> "n"    Venue           : betreibt
+    Tenant         "1" --> "n"    Guest           : kennt Gäste
+
+    Venue          "1" --> "n"    Resource        : hat Ressourcen
+    Venue          "1" --> "n"    OpeningHours    : hat Öffnungszeiten
+    Venue          "1" --> "n"    SpecialClosing  : hat Sonderschliessungen
+    Venue          "1" --> "n"    Reservation     : hat Reservierungen
+
+    Guest          "0..1" --> "n" Reservation     : macht Reservierungen
+    </div>
+</div>
+
+<div class="legend">
+    <h3>Kardinalitäten</h3>
+    <div class="legend-item">
+        <span class="badge" style="background:#1e40af;color:#93c5fd;">1</span>
+        <span>genau ein Datensatz</span>
+    </div>
+    <div class="legend-item">
+        <span class="badge" style="background:#14532d;color:#86efac;">n</span>
+        <span>beliebig viele Datensätze</span>
+    </div>
+    <div class="legend-item">
+        <span class="badge" style="background:#78350f;color:#fcd34d;">0..1</span>
+        <span>optional (keiner oder einer)</span>
+    </div>
+    <div class="legend-item" style="margin-top:4px; width:100%; justify-content:center; color:#475569; font-size:12px;">
+        Beispiel Tenant → Guest: Ein Tenant hat <strong style="color:#86efac">n</strong> Gäste &nbsp;|&nbsp;
+        Ein Gast gehört zu genau <strong style="color:#93c5fd">1</strong> Tenant
+    </div>
+</div>
+
+<script>
+    mermaid.initialize({
+        startOnLoad: true,
+        theme: 'dark',
+        themeVariables: {
+            primaryColor: '#1e3a5f',
+            primaryTextColor: '#e2e8f0',
+            primaryBorderColor: '#3b82f6',
+            lineColor: '#60a5fa',
+            secondaryColor: '#1e293b',
+            tertiaryColor: '#0f172a',
+            background: '#1e293b',
+            mainBkg: '#1e293b',
+            nodeBorder: '#3b82f6',
+            clusterBkg: '#1e293b',
+            titleColor: '#60a5fa',
+            edgeLabelBackground: '#0f172a',
+            classText: '#e2e8f0',
+        },
+        classDiagram: {
+            diagramPadding: 40,
+            useMaxWidth: true,
+        }
+    });
+</script>
+
+</body>
+</html>

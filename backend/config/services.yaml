@@ -1,0 +1,16 @@
+parameters:
+    widget_base_url: '%env(WIDGET_BASE_URL)%'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/DependencyInjection/'
+            - '../src/Module/*/Domain/Entity/'
+            - '../src/Kernel.php'
+
+    # Command/Query Handler werden automatisch über Autoconfigure als Messenger-Handler registriert

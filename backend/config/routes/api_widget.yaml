@@ -1,0 +1,4 @@
+api_widget:
+    resource: '../../src/Api/Controller/Widget/'
+    type: attribute
+    prefix: /api/v1/widget

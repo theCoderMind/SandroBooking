@@ -1,0 +1,27 @@
+framework:
+    messenger:
+        failure_transport: failed
+
+        transports:
+            # Haupt-Queue (Redis)
+            async:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                retry_strategy:
+                    max_retries: 3
+                    delay: 1000
+                    multiplier: 2
+                    max_delay: 0
+                options:
+                    stream: lysandro_messages
+                    group: lysandro_workers
+
+            # Fehlgeschlagene Messages werden hier gesammelt
+            failed:
+                dsn: 'doctrine://default?queue_name=failed'
+
+        routing:
+            # Alle Messages in der App\Messenger\Message\ Namespace → async Queue
+            'App\Messenger\Message\SendConfirmationEmail': async
+            'App\Messenger\Message\SendReminderEmail': async
+            'App\Messenger\Message\SendCancellationEmail': async
+            'App\Messenger\Message\ProcessReservationTimeout': async
