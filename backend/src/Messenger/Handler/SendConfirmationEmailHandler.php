@@ -16,6 +16,7 @@ final class SendConfirmationEmailHandler
     public function __construct(
         private readonly MailerInterface $mailer,
         private readonly Environment $twig,
+        private readonly string $mailerSender,
     ) {}
 
     public function __invoke(SendConfirmationEmail $message): void
@@ -29,6 +30,7 @@ final class SendConfirmationEmailHandler
         ]);
 
         $email = (new Email())
+            ->from($this->mailerSender)
             ->to($message->guestEmail)
             ->subject(sprintf('Ihre Reservierung bei %s ist bestätigt', $message->venueName))
             ->html($html);

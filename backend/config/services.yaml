@@ -1,10 +1,13 @@
 parameters:
     widget_base_url: '%env(WIDGET_BASE_URL)%'
+    mailer_sender: '%env(MAILER_SENDER)%'
 
 services:
     _defaults:
         autowire: true
         autoconfigure: true
+        bind:
+            string $mailerSender: '%mailer_sender%'
 
     App\:
         resource: '../src/'

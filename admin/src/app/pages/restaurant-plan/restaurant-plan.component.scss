@@ -7,6 +7,9 @@
 }
 
 .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 32px;
 }
 
@@ -32,7 +35,7 @@
     width: 80px;
     height: 80px;
     border-radius: 50%;
-    background-color: rgba($color-primary, 0.12);
+    background-color: rgba(var(--color-primary-rgb), 0.12);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -105,7 +108,7 @@
   transition: background 0.2s, color 0.2s;
 
   mat-icon { font-size: 20px; width: 20px; height: 20px; }
-  &:hover { background-color: rgba(255, 255, 255, 0.06); color: $color-white; }
+  &:hover { background-color: rgba(var(--color-text-rgb), 0.06); color: $color-white; }
 }
 
 // ── Room Editor ───────────────────────────────────────────────────────────────
@@ -132,6 +135,139 @@
   font-size: 15px;
   font-weight: 600;
   color: $color-text-on-dark;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.room-editor__edit-tag {
+  background: rgba(var(--color-primary-rgb), 0.18);
+  color: $color-primary;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.room-editor__feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #43a047;
+  margin-right: 12px;
+  animation: fadeIn 0.2s ease-out;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+// ── Rooms Grid auf der Landing ───────────────────────────────────────────
+.rooms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.room-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  background-color: $color-surface;
+  border: 1px solid $color-border;
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+
+  &:hover {
+    background-color: $color-surface-soft;
+    border-color: rgba(var(--color-primary-rgb), 0.4);
+    transform: translateY(-1px);
+  }
+
+  &__icon {
+    flex: 0 0 auto;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background-color: rgba(var(--color-primary-rgb), 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      color: $color-primary;
+    }
+  }
+
+  &__body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__name {
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 600;
+    color: $color-text-on-dark;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 6px;
+
+    span {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 12px;
+      color: $color-text-muted;
+      background: rgba(var(--color-text-rgb), 0.04);
+      padding: 3px 7px;
+      border-radius: 5px;
+
+      mat-icon {
+        font-size: 13px;
+        width: 13px;
+        height: 13px;
+      }
+    }
+  }
+
+  &__date {
+    font-size: 11px;
+    color: rgba(var(--color-text-rgb), 0.4);
+  }
+
+  &__action {
+    color: rgba(var(--color-text-rgb), 0.3);
+
+    mat-icon { font-size: 22px; width: 22px; height: 22px; }
+  }
+
+  &:hover &__action { color: $color-primary; }
 }
 
 // ── Palette ───────────────────────────────────────────────────────────────────
@@ -170,7 +306,7 @@
 
   span { font-size: 11px; color: $color-text-muted; white-space: nowrap; }
 
-  &:hover { border-color: $color-primary; background-color: rgba($color-primary, 0.06); }
+  &:hover { border-color: $color-primary; background-color: rgba(var(--color-primary-rgb), 0.06); }
   &:active { cursor: grabbing; }
 }
 
@@ -205,8 +341,8 @@
   overflow: hidden;
   background-color: #0d1117;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(var(--color-text-rgb), 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--color-text-rgb), 0.04) 1px, transparent 1px);
   background-size: 40px 40px;
 }
 
@@ -218,7 +354,7 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: rgba(255, 255, 255, 0.15);
+  color: rgba(var(--color-text-rgb), 0.15);
   pointer-events: none;
 
   mat-icon { font-size: 36px; width: 36px; height: 36px; }
@@ -412,7 +548,7 @@
 // ── Zusammengestellte Tische ──────────────────────────────────────────────────
 
 .placed-table.is-merged .table-svg {
-  filter: drop-shadow(0 0 8px rgba(255, 183, 0, 0.6));
+  filter: drop-shadow(0 0 8px rgba(var(--color-accent-rgb), 0.6));
 }
 
 .placed-table.is-merged svg rect:last-child,
@@ -480,8 +616,8 @@
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 201;
-  background: #1a1f2e;
-  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--color-surface);
+  border: 1px solid rgba(var(--color-text-rgb), 0.1);
   border-radius: 12px;
   padding: 28px 32px;
   width: 340px;
@@ -517,14 +653,14 @@
   &__text {
     margin: 0;
     font-size: 13px;
-    color: rgba(255,255,255,0.55);
+    color: rgba(var(--color-text-rgb), 0.55);
     line-height: 1.5;
   }
 
   &__seats-input {
     width: 80px;
-    background: #0f1117;
-    border: 1px solid rgba(255,255,255,0.12);
+    background: var(--color-bg);
+    border: 1px solid rgba(var(--color-text-rgb), 0.12);
     border-radius: 8px;
     color: #fff;
     text-align: center;
@@ -536,6 +672,26 @@
     &:focus { outline: none; border-color: #43a047; }
     &::-webkit-inner-spin-button,
     &::-webkit-outer-spin-button { opacity: 1; }
+  }
+
+  &__name-input {
+    width: 100%;
+    background: var(--color-bg);
+    border: 1px solid rgba(var(--color-text-rgb), 0.12);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    padding: 10px 12px;
+    margin: 4px 0;
+
+    &:focus { outline: none; border-color: #2979ff; }
+    &::placeholder { color: rgba(var(--color-text-rgb), 0.3); }
+  }
+
+  &__error {
+    margin: 0;
+    font-size: 12px;
+    color: #e53935;
   }
 
   &__actions {
@@ -556,9 +712,9 @@
     transition: background 0.15s;
 
     &--secondary {
-      background: rgba(255,255,255,0.08);
-      color: rgba(255,255,255,0.7);
-      &:hover { background: rgba(255,255,255,0.12); }
+      background: rgba(var(--color-text-rgb), 0.08);
+      color: rgba(var(--color-text-rgb), 0.7);
+      &:hover { background: rgba(var(--color-text-rgb), 0.12); }
     }
 
     &--primary {

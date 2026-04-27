@@ -1,6 +1,6 @@
 # ─── Lysandro Makefile ───────────────────────────────────────────────────────
 .PHONY: help up down restart logs shell db-shell composer \
-        migrate fixtures jwt-keys test lint
+        migrate fixtures jwt-keys test lint create-admin
 
 help: ## Zeigt diese Hilfe
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -39,6 +39,9 @@ migrate-diff: ## Migration aus Entity-Änderungen generieren
 
 fixtures: ## Test-Fixtures laden (dev only)
 	docker compose exec php php bin/console doctrine:fixtures:load --no-interaction
+
+create-admin: ## Admin-User anlegen. Usage: make create-admin EMAIL=info@saly.tech PASSWORD=1234 [TENANT="Lyandro Restaurant"]
+	docker compose exec php php bin/console app:create-admin "$(EMAIL)" "$(PASSWORD)" $(if $(TENANT),--tenant="$(TENANT)")
 
 cache-clear: ## Symfony Cache leeren
 	docker compose exec php php bin/console cache:clear
