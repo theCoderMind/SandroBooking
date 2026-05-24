@@ -1,5 +1,43 @@
 @use '../../../styles/variables' as *;
 
+// ── Globale Scrollbar-Styles für diese Komponente ──────────────────────────
+:host {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: $color-primary transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: $color-primary;
+    border-radius: 4px;
+
+    &:hover {
+      background: rgba(var(--color-primary-rgb), 0.7);
+    }
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-4px); }
+  40%       { transform: translateX(4px); }
+  60%       { transform: translateX(-3px); }
+  80%       { transform: translateX(3px); }
+}
+
+@keyframes raum-detail-spin {
+  to { transform: rotate(360deg); }
+}
+
 // ── Root Layout ────────────────────────────────────────────────────────────
 .raum-detail {
   display: flex;
@@ -7,6 +45,24 @@
   height: calc(100vh - 64px);
   margin: -32px;
   background: $color-bg;
+
+  // Lade-Zustand (Räume werden noch vom Backend geholt)
+  &--loading {
+    align-items: center;
+    justify-content: center;
+    color: $color-text-muted;
+    gap: 12px;
+
+    p { margin: 0; font-size: 14px; }
+  }
+
+  &__spinner {
+    font-size: 36px;
+    width: 36px;
+    height: 36px;
+    color: $color-accent;
+    animation: raum-detail-spin 1.2s linear infinite;
+  }
 
   &__header {
     display: flex;
@@ -60,6 +116,9 @@
   &__canvas {
     position: relative;
     flex: 1;
+    // Eigener Stacking-Context, damit die z-Reihenfolge von Wand/Tisch
+    // sauber gekapselt ist und nichts von außen mitspielt.
+    isolation: isolate;
     background:
       linear-gradient(rgba(var(--color-text-rgb), 0.03) 1px, transparent 1px) 0 0 / 20px 20px,
       linear-gradient(90deg, rgba(var(--color-text-rgb), 0.03) 1px, transparent 1px) 0 0 / 20px 20px,
@@ -79,6 +138,434 @@
     }
     h2 { margin: 0 0 8px; color: $color-text-on-dark; }
     p  { margin: 0 0 24px; color: $color-text-muted; }
+  }
+}
+
+// ── View-Toggle Button (Plan ↔ Übersicht) ─────────────────────────────────
+.btn-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid $color-border;
+  background: rgba(var(--color-text-rgb), 0.04);
+  color: $color-text-muted;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+
+  svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  &:hover {
+    background: rgba(var(--color-primary-rgb), 0.08);
+    border-color: rgba(var(--color-primary-rgb), 0.35);
+    color: $color-primary;
+  }
+
+  &--active {
+    background: rgba(var(--color-primary-rgb), 0.12);
+    border-color: rgba(var(--color-primary-rgb), 0.4);
+    color: $color-primary;
+    box-shadow: 0 0 0 1px rgba(var(--color-primary-rgb), 0.15);
+  }
+}
+
+// ── Tagesübersicht (Timeline) ──────────────────────────────────────────────
+.tl-view {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+// Grid-Wrap scrollt selbst (X + Y) — kein verschachtelter tl-scroll mehr nötig
+.tl-grid-wrap {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: $color-primary transparent;
+}
+
+// tl-scroll: min-width Wrapper, füllt volle Höhe des Scroll-Containers
+.tl-scroll {
+  min-width: max-content;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%; // füllt tl-grid-wrap komplett aus
+}
+
+// Innerer Wrapper — flex: 1 damit er den Leerraum unterhalb der Slots auffüllt
+.tl-inner {
+  display: flex;
+  flex-direction: column;
+  min-width: max-content;
+  flex: 1; // streckt sich auf volle Höhe
+}
+
+// Content-Reihe (Achse + Spalten) dehnt sich auf verbleibende Höhe aus
+.tl-content {
+  display: flex;
+  flex: 1; // übernimmt Leerraum nach dem Header
+}
+
+// Sticky Header (Tisch-Nummern): scrollt horizontal MIT dem Inhalt,
+// bleibt aber beim vertikalen Scrollen oben stehen
+.tl-header {
+  display: flex;
+  background: $color-dark;
+  border-bottom: 1px solid $color-border;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+
+  &__axis {
+    width: 52px;
+    min-width: 52px;
+    flex-shrink: 0;
+    border-right: 1px solid $color-border;
+    // Ecke bleibt sichtbar wenn gleichzeitig links UND oben gestickt
+    position: sticky;
+    left: 0;
+    background: $color-dark;
+    z-index: 2;
+  }
+
+  &__col {
+    flex: 1;
+    min-width: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 4px;
+    border-right: 1px solid $color-border;
+    gap: 1px;
+  }
+
+  &__num {
+    font-size: 13px;
+    font-weight: 700;
+    color: $color-text-on-dark;
+  }
+
+  &__seats {
+    font-size: 10px;
+    color: $color-text-muted;
+  }
+}
+
+// Zeit-Achse links (sticky left — bleibt sichtbar beim horizontalen Scrollen)
+.tl-axis {
+  width: 52px;
+  min-width: 52px;
+  flex-shrink: 0;
+  border-right: 1px solid $color-border;
+  background: $color-dark;
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  // Höhe = volle Container-Höhe via flex stretch; Labels absolut mit top in %
+
+  &__label {
+    position: absolute;
+    left: 0;
+    right: 0;
+    // top wird per [style.top.%] gesetzt
+    padding: 2px 6px 0;
+    font-size: 10px;
+    font-weight: 500;
+    color: $color-text-muted;
+    font-variant-numeric: tabular-nums;
+    border-top: 1px solid $color-border;
+    line-height: 1.2;
+    pointer-events: none;
+  }
+}
+
+// Spalten-Container — dehnt sich auf volle Höhe
+.tl-columns {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+
+  &--dragging {
+    user-select: none; // kein Textselect während Drag (Trackpad-Fix)
+
+    .tl-col__slot {
+      pointer-events: none; // Neue-RV-Dialog während Drag nicht öffnen
+    }
+  }
+}
+
+// Eine Tisch-Spalte — min-height statt fixer height, füllt immer den Container
+.tl-col {
+  flex: 1;
+  min-width: 80px; // gleich wie tl-header__col → perfekte Ausrichtung
+  border-right: 1px solid $color-border;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+
+  // Öffnungszeiten-Zone — heller Hintergrund für geöffnete Stunden
+  &__open-zone {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.045);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  &__slot {
+    flex: 1;           // gleichmäßige Höhe: alle Slots teilen sich die volle Höhe
+    box-sizing: border-box;
+    position: relative;
+    z-index: 1;
+    cursor: pointer;
+    transition: background 0.1s;
+
+    &:hover {
+      background: rgba($color-primary, 0.15);
+
+      &::after {
+        content: '+';
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: 700;
+        color: $color-primary;
+        opacity: 0.7;
+        pointer-events: none;
+      }
+    }
+
+    &--hour {
+      border-top: 1px solid rgba(var(--color-text-rgb), 0.12);
+    }
+
+    &:not(&--hour) {
+      border-top: 1px solid rgba(var(--color-text-rgb), 0.04);
+    }
+  }
+
+}
+
+// Reservierungs-Block
+.tl-res {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border-radius: 5px;
+  padding: 3px 6px;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;       // verhindert Textauswahl die Drag abbricht
+  -webkit-user-drag: none; // verhindert Browser-eigenes Drag-Verhalten
+  transition: opacity .15s, transform .1s, box-shadow .15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,.3);
+
+  &:hover { opacity: 0.88; transform: scaleX(0.97); }
+
+  &--dragging {
+    cursor: grabbing;
+    opacity: 0.9;
+    transform: scaleX(1) !important;
+    box-shadow: 0 6px 20px rgba(0,0,0,.5);
+    z-index: 10;
+    transition: none; // kein Lag während Drag
+  }
+
+  &__resize-handle {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 8px;
+    cursor: ns-resize;
+    touch-action: none;
+    user-select: none;
+
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 2px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 22px;
+      height: 2px;
+      border-radius: 1px;
+      background: rgba(255, 255, 255, 0.5);
+    }
+
+    &:hover::after { background: rgba(255, 255, 255, 0.9); }
+  }
+
+  &__name {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 2px rgba(0,0,0,.25);
+    line-height: 1.3;
+  }
+
+  &__meta {
+    display: block;
+    font-size: 9px;
+    color: rgba(255,255,255,.8);
+    margin-top: 1px;
+  }
+
+  // Vergangener Tag: alle RVs → abgeblendet + gestreift, aber noch klickbar
+  &--historic {
+    opacity: 0.45;
+    filter: saturate(0.35);
+    background-image: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 4px,
+      rgba(0,0,0,0.12) 4px,
+      rgba(0,0,0,0.12) 5px
+    ) !important;
+    cursor: pointer; // Gastkarte öffnen bleibt möglich
+  }
+}
+
+// Jetzt-Linie
+.tl-now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: $color-danger;
+  z-index: 5;
+  pointer-events: none;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: -3px;
+    top: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: $color-danger;
+  }
+}
+
+// Freie Slots Panel (rechte Sidebar) — volle Höhe, eigene Scroll-Liste
+.tl-free-panel {
+  width: 220px;
+  flex-shrink: 0;
+  border-left: 1px solid $color-border;
+  background: $color-dark;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  align-self: stretch; // immer volle Höhe von .tl-view
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border-bottom: 1px solid $color-border;
+    font-size: 13px;
+    font-weight: 700;
+    color: $color-text-on-dark;
+    flex-shrink: 0;
+
+    mat-icon {
+      font-size: 16px; width: 16px; height: 16px;
+      color: $color-success;
+    }
+  }
+
+  &__list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: $color-primary transparent;
+  }
+
+  &__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 32px 16px;
+    color: $color-text-muted;
+    font-size: 12px;
+    text-align: center;
+
+    mat-icon { font-size: 28px; width: 28px; height: 28px; opacity: .5; }
+  }
+}
+
+// Freier-Slot-Eintrag
+.tl-free-slot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid $color-border;
+  background: rgba(var(--color-text-rgb), 0.02);
+  transition: background .12s;
+
+  &:hover { background: rgba(var(--color-text-rgb), 0.05); }
+
+  &__dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: $color-success;
+    flex-shrink: 0;
+  }
+
+  &__time {
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: $color-text-on-dark;
+    flex: 1;
+  }
+
+  &__count {
+    font-size: 10px;
+    color: $color-text-muted;
+    white-space: nowrap;
+  }
+
+  &__btn {
+    padding: 3px 9px;
+    border-radius: 6px;
+    border: 1px solid rgba(var(--color-primary-rgb), 0.4);
+    background: rgba(var(--color-primary-rgb), 0.1);
+    color: $color-primary;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+
+    &:hover { background: rgba(var(--color-primary-rgb), 0.2); }
   }
 }
 
@@ -233,6 +720,22 @@
     background: transparent;
   }
 
+  &__closed-banner {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 7px 10px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 8px;
+    color: #ef4444;
+    font-size: 12px;
+    font-weight: 600;
+
+    mat-icon { font-size: 14px; width: 14px; height: 14px; flex-shrink: 0; }
+  }
+
   &__today-link {
     display: inline-flex;
     align-items: center;
@@ -294,7 +797,7 @@
   display: grid;
   grid-template-columns: repeat(13, 1fr);
   gap: 4px;
-  height: 48px;
+  height: 64px;
 
   &__cell {
     display: flex;
@@ -304,22 +807,56 @@
     cursor: default;
   }
 
+  &__pct {
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 2px;
+    color: transparent;
+    font-variant-numeric: tabular-nums;
+
+    &.is-green { color: $color-success; }
+    &.is-amber { color: $color-warn; }
+    &.is-red   { color: $color-danger; }
+  }
+
   &__bar {
     width: 100%;
-    background: rgba(var(--color-primary-rgb), 0.4);
+    background: rgba(var(--color-primary-rgb), 0.25);
     border-radius: 3px 3px 0 0;
     min-height: 3px;
     transition: background 0.15s;
   }
 
-  &__cell.is-peak &__bar { background: $color-accent; }
-  &__cell:hover &__bar { background: $color-primary; }
+  &__cell:hover &__bar { background: rgba(var(--color-primary-rgb), 0.5); }
 
   &__hour {
     font-size: 9px;
     color: rgba(var(--color-text-rgb), 0.45);
     margin-top: 3px;
     font-variant-numeric: tabular-nums;
+  }
+}
+
+// ── Reihe für Neue-Reservierung + Walk-In (50/50) ───────────────────────
+// Beide Buttons nehmen je die Hälfte der Sidebar-Breite ein. Der äußere
+// Margin (14px) liegt am Reihen-Container, damit die Reihe bündig zu den
+// anderen Sidebar-Elementen sitzt.
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin: 0 14px 10px;
+
+  .btn-new {
+    flex: 1 1 0;
+    min-width: 0;          // verhindert Overflow bei knapper Breite
+    margin: 0;             // Margin liegt jetzt am Reihen-Container
+    justify-content: center;
+
+    span {
+      flex: 0 1 auto;
+      text-align: center;
+    }
   }
 }
 
@@ -331,18 +868,39 @@
   align-items: center;
   gap: 10px;
   background: rgba(var(--color-primary-rgb), 0.12);
-  border: 1px dashed rgba(var(--color-primary-rgb), 0.4);
+  border: 1.5px solid rgba(var(--color-primary-rgb), 0.55);
   border-radius: 10px;
   color: $color-primary;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  box-shadow: 0 1px 3px rgba(var(--color-primary-rgb), 0.10);
 
   &:hover {
-    background: rgba(var(--color-primary-rgb), 0.2);
+    background: rgba(var(--color-primary-rgb), 0.20);
     border-color: $color-primary;
-    border-style: solid;
+    box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.18);
+  }
+
+  &:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  // Walk-In-Variante: Gold/Akzent statt Blau – signalisiert "jetzt sofort".
+  &--walkin {
+    background: rgba(var(--color-accent-rgb), 0.12);
+    border-color: rgba(var(--color-accent-rgb), 0.55);
+    color: $color-accent;
+    box-shadow: 0 1px 3px rgba(var(--color-accent-rgb), 0.10);
+
+    &:hover {
+      background: rgba(var(--color-accent-rgb), 0.20);
+      border-color: $color-accent;
+      box-shadow: 0 2px 8px rgba(var(--color-accent-rgb), 0.18);
+    }
   }
 
   mat-icon {
@@ -374,17 +932,17 @@
 // ── Filter-Tabs ─────────────────────────────────────────────────────────
 .filter-tabs {
   display: flex;
-  gap: 0;
-  padding: 0 14px;
+  gap: 4px;
+  padding: 8px 14px;
   margin-bottom: 4px;
   border-bottom: 1px solid $color-border;
 
   button {
     flex: 1;
-    padding: 10px 4px;
+    padding: 6px 8px;
     background: transparent;
     border: none;
-    border-bottom: 2px solid transparent;
+    border-radius: 8px;
     color: $color-text-muted;
     font-size: 12px;
     font-weight: 600;
@@ -393,20 +951,23 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
-    transition: color 0.15s, border-color 0.15s;
-    margin-bottom: -1px;
+    transition: color 0.15s, background 0.15s;
 
-    &:hover { color: $color-text-on-dark; }
+    &:hover {
+      color: $color-text-on-dark;
+      background: rgba(var(--color-text-rgb), 0.05);
+    }
 
     &.active {
-      color: $color-text-on-dark;
-      border-bottom-color: $color-accent;
+      color: $color-primary;
+      background: rgba(var(--color-primary-rgb), 0.12);
+      border: 1px solid rgba(var(--color-primary-rgb), 0.30);
     }
   }
 
   &__badge {
-    background: rgba(var(--color-accent-rgb), 0.2);
-    color: $color-accent;
+    background: rgba(var(--color-primary-rgb), 0.18);
+    color: $color-primary;
     font-size: 10px;
     font-weight: 700;
     padding: 1px 6px;
@@ -490,18 +1051,21 @@
   align-items: stretch;
   gap: 10px;
   padding: 6px 10px 6px 6px;
-  background: rgba(var(--color-text-rgb), 0.02);
+  background: $color-surface;
   border-radius: 10px;
   // Farbiger Border-Left zeigt den Status; rest der Border bleibt dezent.
-  border: 1px solid rgba(var(--color-text-rgb), 0.06);
+  border: 1px solid $color-border;
   border-left: 3px solid var(--status-color);
   transition: background 0.15s, border-color 0.15s, transform 0.15s;
   position: relative;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 
   &:hover {
-    background: rgba(var(--color-text-rgb), 0.05);
-    border-color: rgba(var(--color-text-rgb), 0.12);
+    background: rgba(var(--color-text-rgb), 0.03);
+    border-color: rgba(var(--color-text-rgb), 0.14);
     border-left-color: var(--status-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+    transform: translateY(-1px);
   }
 
   // „Tote" Status (Beendet/Storniert/No-Show) etwas zurücktreten lassen
@@ -537,7 +1101,7 @@
 
   &__top {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 4px;
     min-width: 0;
   }
@@ -574,6 +1138,11 @@
 
     .warn   { color: #fb8c00; }
     .muted  { color: rgba(var(--color-text-rgb), 0.4); }
+
+    .no-show-count {
+      font-weight: 700;
+      color: $color-danger;
+    }
   }
 
   &__notes {
@@ -593,6 +1162,89 @@
     align-items: center;
     gap: 4px;
   }
+
+  // ── Modi: Text & Icon ─────────────────────────────────────────────────
+  // Im Text-/Icon-Modus rückt links ein vertikaler Stack: Uhrzeit oben,
+  // Status-Badge oder Icon-Kachel direkt drunter. Rechts bleiben die
+  // Aktions-Buttons, mittig die Reservierungs-Details.
+  &--mode-text,
+  &--mode-svg {
+    grid-template-columns: 72px 1fr auto;
+  }
+
+  &__left-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 72px;
+    flex-shrink: 0;
+  }
+
+  &__time--neutral {
+    background: rgba(var(--color-text-rgb), 0.06);
+    color: $color-text-on-dark;
+    text-shadow: none;
+    box-shadow: inset 0 0 0 1px rgba(var(--color-text-rgb), 0.08);
+    min-height: 22px;
+    padding: 2px 4px;
+    font-size: 11px;
+  }
+
+  // Status-Pille (Text-Modus) — exakt gleiche Maße wie die Time-Pille
+  // darüber, damit sich beide wie ein gepaartes Pill-Pärchen anfühlen.
+  &__status-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 22px;
+    padding: 2px 5px;
+    border-radius: 8px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.1px;
+    line-height: 1;
+    white-space: nowrap;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+                0 1px 2px rgba(0, 0, 0, 0.15);
+  }
+
+  &__overdue-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.4;
+    white-space: nowrap;
+    mat-icon { font-size: 11px; width: 11px; height: 11px; }
+
+    &--late    { color: rgba(var(--t-late-rgb),    1); }
+    &--expired { color: rgba(var(--t-expired-rgb), 1); }
+  }
+
+  &__status-tile {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 28px;
+    border-radius: 6px;
+    background: var(--status-color);
+    color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+                0 1px 2px rgba(0, 0, 0, 0.2);
+
+    app-status-icon { line-height: 0; }
+  }
+
+  // Icon-Modus: Stack komplett kompakter & Icon kleiner
+  &--mode-svg &__left-stack { width: 64px; }
+  &--mode-svg &__status-tile { height: 26px; border-radius: 6px; }
+  &--mode-svg &__time--neutral { min-height: 20px; font-size: 10px; }
+  &--mode-svg { grid-template-columns: 64px 1fr auto; }
 }
 
 // ── Action Buttons & Kebab ──────────────────────────────────────────────
@@ -625,11 +1277,38 @@
   }
 
   &--success {
-    background: rgba(67, 160, 71, 0.18);
-    color: #66bb6a;
-    border-color: rgba(67, 160, 71, 0.4);
+    background: rgba(var(--t-seated-rgb), 0.18);
+    color: rgba(var(--t-seated-rgb), 0.9);
+    border-color: rgba(var(--t-seated-rgb), 0.4);
 
-    &:hover { background: rgba(67, 160, 71, 0.3); color: #43a047; }
+    &:hover { background: rgba(var(--t-seated-rgb), 0.3); }
+  }
+
+  // Cleanup-Action: cyan/teal
+  &--cleanup {
+    background: rgba(var(--t-cleanup-rgb), 0.18);
+    color: rgba(var(--t-cleanup-rgb), 0.9);
+    border-color: rgba(var(--t-cleanup-rgb), 0.4);
+
+    &:hover { background: rgba(var(--t-cleanup-rgb), 0.3); }
+  }
+
+  // Check-in für "Bevorstehend" (confirmed) — Stahlgrau
+  &--checkin-confirmed {
+    background: rgba(var(--t-confirmed-rgb), 0.12);
+    color: rgba(var(--t-confirmed-rgb), 1);
+    border-color: rgba(var(--t-confirmed-rgb), 0.35);
+
+    &:hover { background: rgba(var(--t-confirmed-rgb), 0.25); }
+  }
+
+  // Check-in für "Verspätet" (late) — Amber
+  &--checkin-late {
+    background: rgba(var(--t-late-rgb), 0.12);
+    color: rgba(var(--t-late-rgb), 1);
+    border-color: rgba(var(--t-late-rgb), 0.35);
+
+    &:hover { background: rgba(var(--t-late-rgb), 0.25); }
   }
 }
 
@@ -691,24 +1370,28 @@
 }
 
 // ── Floor Plan Elements ──────────────────────────────────────────────────
+// Stacking: Wände gehören als „Architektur" in den Hintergrund (z-index 1),
+// Tische als interaktive Bedien-Elemente in den Vordergrund (z-index 5).
 .placed-wall {
   position: absolute;
   height: 16px;
   display: flex;
   align-items: center;
   transform-origin: center center;
+  z-index: 1;
 
   .wall-body {
     width: 100%;
     height: 8px;
-    background: #546e7a;
-    border: 1px solid #78909c;
+    background: rgba(var(--color-text-rgb), 0.28);
+    border: 1px solid rgba(var(--color-text-rgb), 0.18);
     border-radius: 2px;
   }
 }
 
 .placed-table {
   position: absolute;
+  z-index: 5;
   transform-origin: center center;
   cursor: pointer;
 
@@ -719,60 +1402,193 @@
 
     &__body {
       fill: var(--color-surface);
-      stroke: var(--color-primary);
-      stroke-width: 2;
+      stroke: rgba(var(--color-text-rgb), 0.22);
+      stroke-width: 1.5;
       transition: fill 0.2s, stroke 0.2s, stroke-width 0.2s, filter 0.2s;
     }
   }
 
-  &:hover {
+  &:hover:not(:has(.placed-table__guest:hover, .placed-table__guest-expand:hover)) {
     .table-svg__body {
       stroke-width: 3;
       filter: drop-shadow(0 0 6px rgba(var(--color-accent-rgb), 0.55));
     }
-    .placed-table__seats-badge { color: $color-accent; }
+    .placed-table__label-id { color: $color-accent; }
   }
 
   &:active .table-svg__body {
     filter: drop-shadow(0 0 10px rgba(var(--color-accent-rgb), 0.85));
   }
 
-  &__seats-badge {
+  &__label {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 14px;
-    font-weight: 700;
-    color: $color-text-on-dark;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
     pointer-events: none;
+    line-height: 1;
   }
 
-  &__guest {
+  &__label-id {
+    font-size: 13px;
+    font-weight: 700;
+    color: $color-text-on-dark;
+    letter-spacing: 0.02em;
+    transition: color 0.2s;
+  }
+
+  &__label-seats {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 10px;
+    font-weight: 500;
+    color: $color-text-muted;
+    opacity: 0.85;
+
+    svg { flex-shrink: 0; opacity: 0.7; }
+  }
+
+  &__guests {
     position: absolute;
     top: 100%;
     left: 50%;
-    transform: translate(-50%, 4px);
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin-top: 4px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  &__guest {
     display: flex;
     align-items: center;
     gap: 4px;
     padding: 3px 8px;
-    background: rgba(15, 17, 23, 0.92);
+    background: $color-surface;
     border: 1px solid $color-border;
     border-radius: 14px;
     font-size: 11px;
     color: $color-text-on-dark;
     white-space: nowrap;
-    pointer-events: none;
+    pointer-events: auto;
+    transition: border-color 0.15s, background 0.15s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+
+    &:hover {
+      border-color: rgba(var(--color-primary-rgb), 0.5);
+      background: rgba(var(--color-primary-rgb), 0.08);
+    }
 
     mat-icon { font-size: 12px; width: 12px; height: 12px; color: $color-text-muted; }
     small { font-size: 10px; color: $color-text-muted; }
+
+    &.is-multi { padding-right: 4px; }
   }
 
-  // Status-Färbung
-  &.is-upcoming .table-svg__body { fill: rgba(41, 121, 255, 0.25); stroke: $color-primary; }
-  &.is-seated   .table-svg__body { fill: rgba(67, 160, 71, 0.3);  stroke: #43a047; }
-  &.is-seated   .placed-table__guest { border-color: rgba(67, 160, 71, 0.6); }
+  &__guest-remove {
+    pointer-events: auto;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 0 3px;
+    line-height: 1;
+    border-radius: 50%;
+    transition: color 0.15s, background 0.15s;
+
+    &:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.15);
+    }
+  }
+
+  &__guest-expand {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 8px 2px 6px;
+    background: rgba(var(--color-primary-rgb), 0.10);
+    border: 1px solid rgba(var(--color-primary-rgb), 0.30);
+    border-radius: 14px;
+    color: $color-primary;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+
+    mat-icon { font-size: 13px; width: 13px; height: 13px; }
+
+    &:hover {
+      background: rgba(var(--color-primary-rgb), 0.18);
+      border-color: rgba(var(--color-primary-rgb), 0.55);
+    }
+  }
+
+
+  // Status-Färbung — alle Farben über CSS-Variablen (leicht umschaltbar)
+  &.is-upcoming .table-svg__body  {
+    fill: rgba(var(--t-upcoming-rgb), 0.18);
+    stroke: rgba(var(--t-upcoming-rgb), 1);
+    stroke-dasharray: 5 3;
+  }
+
+  // "confirmed" = Tisch reserviert, Gast wird erwartet → Stahlgrau, klar aber ruhig
+  &.is-confirmed .table-svg__body {
+    fill: rgba(var(--t-confirmed-rgb), 0.22);
+    stroke: rgba(var(--t-confirmed-rgb), 1);
+    stroke-width: 2;
+  }
+  &.is-confirmed .placed-table__label-id { color: rgba(var(--t-confirmed-rgb), 1); }
+  &.is-confirmed .placed-table__guest    { border-color: rgba(var(--t-confirmed-rgb), 0.55); }
+
+  &.is-seated   .table-svg__body {
+    fill: rgba(var(--t-seated-rgb), 0.3);
+    stroke: rgba(var(--t-seated-rgb), 1);
+  }
+  &.is-seated   .placed-table__guest { border-color: rgba(var(--t-seated-rgb), 0.6); }
+  &.is-seated   .placed-table__guests .placed-table__guest { border-color: rgba(var(--t-seated-rgb), 0.6); }
+
+  // "expired" = Reservierungszeit abgelaufen, Tisch noch belegt → Orange-Pulse
+  &.is-expired  .table-svg__body {
+    fill: rgba(var(--t-expired-rgb), 0.32);
+    stroke: rgba(var(--t-expired-rgb), 1);
+    stroke-width: 2.5;
+    animation: expired-pulse 1.8s ease-in-out infinite;
+  }
+  &.is-expired  .placed-table__guest { border-color: rgba(var(--t-expired-rgb), 0.7); }
+  &.is-expired  .placed-table__guests .placed-table__guest { border-color: rgba(var(--t-expired-rgb), 0.7); }
+
+  // "cleanup" = Gäste sind weg, Tisch wird gerade gereinigt
+  &.is-cleanup  .table-svg__body {
+    fill: rgba(var(--t-cleanup-rgb), 0.22);
+    stroke: rgba(var(--t-cleanup-rgb), 1);
+    stroke-width: 2.5;
+    stroke-dasharray: 6 4;
+    animation: cleanup-pulse 2.4s ease-in-out infinite;
+  }
+  &.is-cleanup  .placed-table__guest { border-color: rgba(var(--t-cleanup-rgb), 0.7); }
+
+  // "late" = Gast ist verspätet, hat Tisch aber noch nicht eingecheckt → Gelb-Amber
+  &.is-late .table-svg__body {
+    fill: rgba(var(--t-late-rgb), 0.22);
+    stroke: rgba(var(--t-late-rgb), 1);
+    stroke-width: 2.5;
+    animation: late-pulse 1.6s ease-in-out infinite;
+  }
+  &.is-late .placed-table__label-id { color: rgba(var(--t-late-rgb), 1); }
+  &.is-late .placed-table__guest    { border-color: rgba(var(--t-late-rgb), 0.65); }
 
   // ── Umplatzier-Modus ────────────────────────────────────────────────
   &.is-reassign-source {
@@ -782,7 +1598,7 @@
       fill: rgba(var(--color-accent-rgb), 0.22) !important;
       animation: reassign-pulse 1.2s ease-in-out infinite;
     }
-    .placed-table__seats-badge { color: $color-accent; }
+    .placed-table__label-id { color: $color-accent; }
     .placed-table__guest { border-color: rgba(var(--color-accent-rgb), 0.8); }
   }
 
@@ -809,6 +1625,23 @@
   50% {
     filter: drop-shadow(0 0 16px rgba(var(--color-accent-rgb), 1));
   }
+}
+
+// "expired"-Tisch zart pulsieren lassen — sanfter als der Reassign-Pulse,
+// damit es Aufmerksamkeit erzeugt, aber nicht aggressiv wirkt.
+@keyframes expired-pulse {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(var(--t-expired-rgb), 0.45)); }
+  50%      { filter: drop-shadow(0 0 12px rgba(var(--t-expired-rgb), 0.85)); }
+}
+
+@keyframes cleanup-pulse {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(var(--t-cleanup-rgb), 0.40)); }
+  50%      { filter: drop-shadow(0 0 10px rgba(var(--t-cleanup-rgb), 0.80)); }
+}
+
+@keyframes late-pulse {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(var(--t-late-rgb), 0.45)); }
+  50%      { filter: drop-shadow(0 0 12px rgba(var(--t-late-rgb), 0.90)); }
 }
 
 // ── Reassign-Hinweis-Banner ──────────────────────────────────────────────
@@ -879,12 +1712,338 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+// ── Umplatzieren-oder-Splitten-Popup ─────────────────────────────────────────
+.reassign-choice-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(3px);
+  animation: reassign-hint-in 0.15s ease-out;
+}
+
+.reassign-choice {
+  background: $color-dark;
+  border: 1px solid $color-border;
+  border-radius: 14px;
+  padding: 20px;
+  width: 300px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  &__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: $color-text-on-dark;
+    text-align: center;
+    justify-content: center;
+
+    mat-icon { font-size: 18px; width: 18px; height: 18px; color: $color-text-muted; }
+  }
+
+  &__options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__opt {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 14px;
+    border-radius: 10px;
+    border: 1.5px solid $color-border;
+    background: rgba(255, 255, 255, 0.03);
+    color: $color-text-on-dark;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+
+    &:hover { transform: translateY(-1px); }
+
+    mat-icon {
+      font-size: 22px;
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    div {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+
+      strong { font-size: 13px; font-weight: 600; }
+      span   { font-size: 11px; color: $color-text-muted; line-height: 1.4; }
+    }
+
+    &--move {
+      &:hover { background: rgba(41, 121, 255, 0.12); border-color: $color-primary; }
+      mat-icon { color: $color-primary; }
+    }
+
+    &--split {
+      &:hover { background: rgba(255, 152, 0, 0.12); border-color: #ff9800; }
+      mat-icon { color: #ff9800; }
+    }
+
+    &--merge {
+      &:hover { background: rgba(76, 175, 80, 0.12); border-color: #4caf50; }
+      mat-icon { color: #4caf50; }
+    }
+  }
+
+  &__cancel {
+    background: none;
+    border: none;
+    color: $color-text-muted;
+    font-size: 12px;
+    cursor: pointer;
+    text-align: center;
+    padding: 2px;
+    transition: color 0.15s;
+
+    &:hover { color: $color-text-on-dark; }
+  }
+}
+
 .merge-line {
   position: absolute;
   height: 4px;
   background: rgba(41, 121, 255, 0.6);
   border-radius: 2px;
   pointer-events: none;
+
+  &--reservation {
+    height: 3px;
+    background: rgba(var(--color-accent-rgb), 0.8);
+    border-radius: 2px;
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 4px;
+      background: rgba(var(--color-accent-rgb), 0.15);
+    }
+  }
+}
+
+// ── Merge-Badge (nur Icon in gelb, kein Hintergrund) ─────────────────────
+.merge-badge {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  z-index: 20;
+  user-select: none;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: #ffb700;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+    transition: transform 0.15s, color 0.15s;
+  }
+
+  &:hover mat-icon {
+    color: #ffe066;
+    transform: scale(1.25);
+  }
+}
+
+// ── Tische-trennen-Dialog im Canvas ──────────────────────────────────────
+.room-split-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(3px);
+  animation: reassign-hint-in 0.15s ease-out;
+}
+
+.room-split-dialog {
+  background: $color-dark;
+  border: 1px solid $color-border;
+  border-radius: 14px;
+  padding: 24px 20px 20px;
+  width: 290px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+
+  &__icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(255, 183, 0, 0.15);
+    border: 1.5px solid #ffb700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    mat-icon { color: #ffb700; font-size: 22px; width: 22px; height: 22px; }
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: $color-text-on-dark;
+  }
+
+  &__text {
+    margin: 0;
+    font-size: 12px;
+    color: $color-text-muted;
+    line-height: 1.5;
+  }
+
+  &__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    margin-top: 4px;
+  }
+
+  &__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1.5px solid $color-border;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+
+    mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+    &--confirm {
+      background: rgba(255, 183, 0, 0.12);
+      border-color: #ffb700;
+      color: #ffb700;
+      &:hover { background: rgba(255, 183, 0, 0.22); }
+    }
+
+    &--cancel {
+      background: transparent;
+      color: $color-text-muted;
+      &:hover { color: $color-text-on-dark; background: rgba(255,255,255,0.05); }
+    }
+  }
+}
+
+// ── Merge-Hinweis & Sitzplatz-Info (Tischauswahl im Dialog) ─────────────
+.merge-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: rgba(var(--color-accent-rgb), 0.08);
+  border: 1px solid rgba(var(--color-accent-rgb), 0.3);
+  border-radius: 8px;
+  font-size: 11px;
+  color: $color-accent;
+
+  mat-icon {
+    font-size: 15px;
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+
+  span { flex: 1; min-width: 100%; }
+
+  &__chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 9px;
+    background: rgba(var(--color-accent-rgb), 0.15);
+    border: 1px solid rgba(var(--color-accent-rgb), 0.4);
+    border-radius: 20px;
+    color: $color-accent;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.12s;
+
+    &:hover { background: rgba(var(--color-accent-rgb), 0.28); }
+  }
+
+  &__seats {
+    font-weight: 400;
+    opacity: 0.75;
+  }
+}
+
+.table-seats-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 8px;
+  border-radius: 6px;
+
+  mat-icon { font-size: 14px; width: 14px; height: 14px; }
+
+  &--ok {
+    color: #22c55e;
+    background: rgba(34, 197, 94, 0.1);
+  }
+
+  &--warn {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+  }
+}
+
+@keyframes suggest-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+  50%       { box-shadow: 0 0 0 5px rgba(34, 197, 94, 0); }
+}
+
+.merge-hint--best {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #22c55e;
+}
+
+.merge-hint__chip--best {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #22c55e;
+
+  &:hover { background: rgba(34, 197, 94, 0.28); }
 }
 
 // ── Dialoge ──────────────────────────────────────────────────────────────
@@ -893,6 +2052,48 @@
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
   z-index: 200;
+}
+
+// ── Buchungstyp-Toggle (Reservierung / Walk-In) ──────────────────────────
+.type-toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+
+  &__btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1.5px solid $color-border;
+    background: rgba(var(--color-text-rgb), 0.04);
+    color: $color-text-muted;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+
+    svg {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+
+    &:hover:not(&--active) {
+      border-color: $color-primary;
+      color: $color-text-on-dark;
+    }
+
+    &--active {
+      background: rgba(var(--color-accent-rgb), 0.15);
+      border-color: $color-accent;
+      color: $color-accent;
+    }
+  }
 }
 
 .dialog {
@@ -912,14 +2113,47 @@
   flex-direction: column;
   gap: 14px;
 
-  &--form { width: 480px; }
+  &--form { width: 920px; max-height: 90vh; overflow-y: auto; }
+  &--gc   { width: 780px; max-height: 92vh; overflow-y: auto; padding: 0; gap: 0; }
   &--table-picker { width: 420px; }
+
+  &__title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
 
   &__title {
     margin: 0;
     font-size: 17px;
     font-weight: 700;
     color: $color-text-on-dark;
+  }
+
+  &__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid $color-border;
+    background: rgba(var(--color-text-rgb), 0.05);
+    color: $color-text-muted;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+
+    mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+    &:hover {
+      background: rgba(var(--color-text-rgb), 0.12);
+      color: $color-text-on-dark;
+    }
+
+    // Auf Mobile verstecken (dort gibt es Abbrechen-Button)
+    @media (max-width: 640px) { display: none; }
   }
 
   &__text {
@@ -932,12 +2166,24 @@
     margin: 0;
     font-size: 12px;
     color: #e53935;
+
+    &--bottom {
+      text-align: right;
+      margin-top: 8px;
+    }
   }
 
   &__actions {
     display: flex;
     gap: 10px;
     margin-top: 4px;
+
+    &--bottom-right {
+      justify-content: flex-end;
+      margin-top: 16px;
+
+      .dialog__btn { flex: 0 0 auto; min-width: 120px; }
+    }
   }
 
   &__btn {
@@ -964,25 +2210,467 @@
   }
 }
 
-// ── Form Fields ─────────────────────────────────────────────────────────
-.reservation-form {
+// ── Inline-Kalender im Reservierungsdialog ───────────────────────────────
+.inline-cal {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 8px 6px 6px;
+  user-select: none;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    padding: 0 2px;
+  }
+
+  &__nav {
+    background: none;
+    border: none;
+    color: $color-text-muted;
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    transition: background 0.15s, color 0.15s;
+    mat-icon { font-size: 16px; width: 16px; height: 16px; }
+    &:hover {
+      background: rgba(255,255,255,0.08);
+      color: $color-text;
+    }
+  }
+
+  &__month-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: $color-text;
+    letter-spacing: 0.01em;
+  }
+
+  &__weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    margin-bottom: 3px;
+    span {
+      text-align: center;
+      font-size: 8px;
+      font-weight: 700;
+      color: $color-text-muted;
+      padding: 1px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+  }
+
+  &__day {
+    aspect-ratio: 1;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    font-size: 11px;
+    font-family: inherit;
+    color: $color-text;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s, color 0.12s;
+    line-height: 1;
+
+    &:hover:not([disabled]):not(.is-selected) {
+      background: rgba(255,255,255,0.09);
+    }
+
+    &.is-other-month {
+      color: $color-text-muted;
+      opacity: 0.35;
+    }
+
+    &.is-past:not(.is-selected) {
+      color: $color-text-muted;
+      opacity: 0.38;
+    }
+
+    &.is-today:not(.is-selected) {
+      color: $color-primary;
+      font-weight: 700;
+      background: rgba(41, 121, 255, 0.13);
+      border-radius: 6px;
+    }
+
+    &.is-selected {
+      background: rgba(var(--color-accent-rgb), 0.15);
+      border: 1.5px solid $color-accent;
+      color: $color-accent;
+      font-weight: 700;
+      border-radius: 7px;
+      box-shadow: 0 0 0 1px rgba(var(--color-accent-rgb), 0.2);
+    }
+  }
+}
+
+// Zeitslot-Karten (innerhalb table-inline--time)
+.table-inline--time .table-inline__card {
+  padding: 11px 4px;
+  min-height: auto;
+  border-radius: 8px;
+  gap: 0;
+}
+
+.table-inline--time .table-inline__num {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+// Personen-Karten (picker-row)
+.picker-row .table-inline__card {
+  padding: 10px 4px;
+  min-height: auto;
+  border-radius: 8px;
+  gap: 0;
+}
+
+.picker-row .table-inline__num {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+// ── Form Layout (2-spaltig) ──────────────────────────────────────────────
+.reservation-form { display: flex; flex-direction: column; gap: 0; }
+
+.form-layout {
+  display: grid !important;
+  // Topbar (volle Breite) + 3 Spalten darunter
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 0;
+  align-items: stretch;
+
+  // Im Bearbeitungs-Dialog: kein Kalender/Toggle → nur 2 Spalten
+  &--edit {
+    grid-template-columns: 1fr 1fr;
+    .form-col--fields { display: none; }
+  }
+}
+
+// ── Kopfzeile: Name · Dauer · E-Mail · Telefon ───────────────────────────
+.form-topbar {
+  grid-column: 1 / -1; // volle Breite
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid $color-border;
+
+  &__name     { flex: 3; min-width: 0; }
+  &__duration { flex: 1.2; min-width: 110px; }
+  &__email    { flex: 1.8; min-width: 0; }
+  &__phone    { flex: 1.4; min-width: 0; }
+}
+
+.form-col {
   display: flex;
   flex-direction: column;
   gap: 12px;
+
+  &--fields {
+    align-self: stretch;
+    padding-right: 16px;
+  }
+
+  &--time {
+    gap: 8px;
+    padding: 0 16px;
+    border-left: 1px solid $color-border;
+  }
+
+  // Scrollbarer Bereich nur für die Zeitslots
+  &__time-slots {
+    overflow-y: auto;
+    max-height: 220px;
+    padding-right: 2px;
+  }
+
+  &--tables {
+    gap: 8px;
+    padding-left: 16px;
+    border-left: 1px solid $color-border;
+    overflow-y: auto;
+    max-height: 480px;
+  }
 }
+
+// ── Spalten-Überschriften (Uhrzeit / Tisch wählen) ──────────────────────
+.col-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(var(--color-primary-rgb), 0.25);
+
+  &__icon {
+    width: 32px;
+    height: 32px;
+    color: $color-primary;
+    flex-shrink: 0;
+  }
+
+  &__text {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: $color-primary;
+  }
+}
+
+// ── Inline Table / Time Picker ──────────────────────────────────────────
+.table-inline {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+
+  // Zeitslot-Picker bleibt 3-spaltig
+  &--time {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  &--invalid {
+    outline: 2px solid rgba(229, 57, 53, 0.5);
+    outline-offset: 4px;
+    border-radius: 8px;
+    animation: shake .3s ease;
+  }
+}
+
+.table-inline__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 6px 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1.5px solid $color-border;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+  text-align: center;
+  min-height: 64px;
+
+  &:hover:not(:disabled):not(.table-inline__card--selected) {
+    background: rgba(var(--color-primary-rgb), 0.10);
+    border-color: $color-primary;
+  }
+
+  &--selected {
+    background: rgba(var(--color-accent-rgb), 0.14);
+    border-color: $color-accent;
+    border-width: 2px;
+    box-shadow: 0 0 0 1px rgba(var(--color-accent-rgb), 0.25);
+
+    .table-inline__num { color: $color-accent; }
+    .table-inline__lbl { color: rgba(var(--color-accent-rgb), 0.75); }
+  }
+
+  // Besetzt: kaum sichtbar, kein Klick
+  &--full {
+    opacity: 0.55;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  &--small {
+    border-style: dashed;
+    border-color: rgba(var(--color-primary-rgb), 0.4);
+    opacity: 0.85;
+    cursor: pointer;
+  }
+
+  &--suggested {
+    border-color: #22c55e;
+    background: rgba(34, 197, 94, 0.10);
+    animation: suggest-pulse 1.6s ease-in-out infinite;
+    cursor: pointer;
+
+    .table-inline__num { color: #22c55e; }
+  }
+
+  &--merge {
+    border-color: $color-accent;
+    background: rgba(var(--color-accent-rgb), 0.12);
+    .table-inline__num { color: $color-accent; }
+  }
+
+  &--selected-full {
+    background: rgba(229, 57, 53, 0.12);
+    border-color: #e53935;
+    border-style: solid;
+    .table-inline__num { color: #e53935; }
+  }
+}
+
+.table-inline__icon {
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
+  color: $color-text-muted;
+}
+
+.table-inline__num {
+  font-size: 18px;
+  font-weight: 700;
+  color: $color-text-on-dark;
+  line-height: 1;
+}
+
+.table-inline__lbl {
+  font-size: 11px;
+  color: $color-text-muted;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.table-inline__badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ef4444;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  &--suggested {
+    color: #22c55e;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  &--small {
+    color: $color-primary;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  &--merge {
+    color: $color-accent;
+    font-size: 10px;
+    font-weight: 800;
+  }
+}
+
+// ── Besetzt-Warnung im Reservierungsdialog ───────────────────────────────
+.table-occupied-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  background: rgba(229, 57, 53, 0.1);
+  border: 1px solid rgba(229, 57, 53, 0.4);
+  border-radius: 8px;
+  color: #e53935;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  strong { font-weight: 700; }
+}
+
+// ── Picker-Row (Personen & Uhrzeit als horizontale Karten-Reihe) ────────
+.picker-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+
+  &--invalid {
+    outline: 2px solid rgba(229, 57, 53, 0.5);
+    outline-offset: 4px;
+    border-radius: 8px;
+    animation: shake .3s ease;
+  }
+
+  &__card {
+    min-width: 38px;
+    padding: 5px 4px;
+  }
+
+  &__more-input {
+    min-width: 48px;
+    max-width: 64px;
+    padding: 5px 6px;
+    background: rgba(var(--color-text-rgb), 0.04);
+    border: 1.5px solid $color-border;
+    border-radius: 8px;
+    color: $color-text-on-dark;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+    transition: border-color 0.15s;
+
+    &:focus {
+      outline: none;
+      border-color: $color-primary;
+    }
+
+    &--active {
+      background: rgba(var(--color-accent-rgb), 0.15);
+      border-color: $color-accent;
+      color: $color-accent;
+    }
+  }
+}
+
+// ── Form Fields ─────────────────────────────────────────────────────────
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  flex: 1;
+  gap: 3px;
+  flex: 0 0 auto;  // Felder nicht strecken — nur rf-notes / --grow wächst
 
   &__label {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
     color: $color-text-muted;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__required-hint {
+    font-size: 10px;
+    font-weight: 700;
+    color: #e53935;
+    text-transform: none;
+    letter-spacing: 0;
+    background: rgba(229, 57, 53, 0.1);
+    padding: 1px 6px;
+    border-radius: 4px;
   }
 
   &__input {
@@ -990,14 +2678,37 @@
     border: 1px solid $color-border;
     border-radius: 6px;
     color: $color-text-on-dark;
-    font-size: 14px;
-    padding: 9px 10px;
+    font-size: 13px;
+    padding: 7px 9px;
     font-family: inherit;
 
     &:focus { outline: none; border-color: $color-primary; }
     &::placeholder { color: rgba(var(--color-text-rgb), 0.3); }
 
-    &--area { resize: vertical; min-height: 44px; }
+    &--area    { resize: vertical; min-height: 40px; }
+    &--grow    { flex: 1; resize: none; }
+    &--invalid {
+      border-color: #e53935 !important;
+      box-shadow: 0 0 0 2px rgba(229, 57, 53, 0.2);
+      animation: shake .3s ease;
+    }
+    &--select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 30px;
+      cursor: pointer;
+
+      option {
+        background: #1a1f2e;
+        color: inherit;
+      }
+    }
+  }
+
+  &--grow {
+    flex: 1 1 auto;  // Feld selbst wächst, damit Textarea den Resträum füllt
   }
 }
 
@@ -1005,6 +2716,12 @@
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 10px;
+
+  &--2 { grid-template-columns: 1fr 1fr; }
+}
+
+.guest-suggestions--detached {
+  margin-top: -8px;
 }
 
 // ── Tisch-Picker ────────────────────────────────────────────────────────
@@ -1027,9 +2744,16 @@
     cursor: pointer;
     transition: all 0.15s;
 
-    &:hover {
+    &:hover:not(.is-full) {
       background: rgba(var(--color-primary-rgb), 0.15);
       border-color: $color-primary;
+    }
+
+    &.is-full {
+      opacity: 0.45;
+      cursor: not-allowed;
+      border-style: dashed;
+      pointer-events: none;
     }
   }
 
@@ -1042,5 +2766,1693 @@
   &__lbl {
     font-size: 11px;
     color: $color-text-muted;
+  }
+
+  &__full-badge {
+    margin-top: 2px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #fb923c;
+    background: rgba(251, 146, 60, 0.15);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+}
+
+// ── Getränke-Alert-Icon direkt in der Reservierungszeile ─────────────────────
+.drinks-alert {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  margin-right: 2px;
+  position: relative;
+
+  &__svg {
+    width: 22px;
+    height: 22px;
+    filter: drop-shadow(0 0 5px rgba(56,189,248,.8))
+            drop-shadow(0 0 12px rgba(56,189,248,.5));
+    animation: drinksPulse 1.6s ease-in-out infinite;
+    transition: transform .15s;
+  }
+
+  &:hover &__svg {
+    transform: scale(1.18);
+    animation: none;
+    filter: drop-shadow(0 0 8px rgba(56,189,248,1))
+            drop-shadow(0 0 16px rgba(56,189,248,.7));
+  }
+}
+
+@keyframes drinksPulse {
+  0%, 100% { filter: drop-shadow(0 0 5px rgba(56,189,248,.8)) drop-shadow(0 0 12px rgba(56,189,248,.5)); }
+  50%       { filter: drop-shadow(0 0 9px rgba(56,189,248,1)) drop-shadow(0 0 20px rgba(56,189,248,.75)); }
+}
+
+// ── res-row__body klickbar ────────────────────────────────────────────────────
+.res-row__body--clickable {
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background .15s;
+  padding: 4px 6px;
+  margin: -4px -6px;
+
+  &:hover { background: rgba(var(--color-text-rgb), .06); }
+}
+
+// ── Kundenkarte-Modal ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// Gästekarte (dialog--gc)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Kopfzeile ─────────────────────────────────────────────────────────────
+.gc-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid $color-border;
+}
+
+.gc-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: $color-primary;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  &--warn {
+    background: #e53935; // Rot wenn ≥ 2× No-Show
+    box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.25);
+  }
+}
+
+.gc-identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gc-name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: $color-text-on-dark;
+  line-height: 1.2;
+}
+
+.gc-contact-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.gc-contact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: $color-text-muted;
+  text-decoration: none;
+  transition: color .15s;
+
+  mat-icon { font-size: 13px; width: 13px; height: 13px; }
+  &:hover { color: $color-primary; }
+}
+
+.gc-noshow-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #e53935;
+  background: rgba(229, 57, 53, 0.12);
+  border: 1px solid rgba(229, 57, 53, 0.3);
+  border-radius: 20px;
+  padding: 2px 8px;
+  width: fit-content;
+
+  mat-icon { font-size: 12px; width: 12px; height: 12px; }
+}
+
+.gc-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: $color-text-muted;
+  display: flex;
+  padding: 4px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  &:hover { background: rgba(var(--color-text-rgb), .08); color: $color-text-on-dark; }
+  mat-icon { font-size: 20px; }
+}
+
+// ── Status-Aktionsleiste ───────────────────────────────────────────────────
+.gc-actions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 20px;
+  background: rgba(var(--color-text-rgb), .03);
+  border-bottom: 1px solid $color-border;
+}
+
+.gc-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, opacity .15s;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+  &:disabled { opacity: .5; cursor: default; }
+
+  &--confirm {
+    background: rgba(67, 160, 71, .15);
+    border-color: rgba(67, 160, 71, .4);
+    color: #43a047;
+    &:hover:not(:disabled) { background: rgba(67, 160, 71, .25); }
+  }
+  &--seat {
+    background: rgba(41, 121, 255, .12);
+    border-color: rgba(41, 121, 255, .4);
+    color: $color-primary;
+    &:hover:not(:disabled) { background: rgba(41, 121, 255, .22); }
+  }
+  &--complete {
+    background: rgba(0, 150, 136, .12);
+    border-color: rgba(0, 150, 136, .4);
+    color: #009688;
+    &:hover:not(:disabled) { background: rgba(0, 150, 136, .22); }
+  }
+  &--noshow {
+    background: rgba(255, 152, 0, .12);
+    border-color: rgba(255, 152, 0, .4);
+    color: #ff9800;
+    &:hover:not(:disabled) { background: rgba(255, 152, 0, .22); }
+  }
+  &--cancel {
+    background: rgba(229, 57, 53, .12);
+    border-color: rgba(229, 57, 53, .4);
+    color: #e53935;
+    &:hover:not(:disabled) { background: rgba(229, 57, 53, .22); }
+  }
+  &--reopen {
+    background: rgba(var(--color-text-rgb), .08);
+    border-color: $color-border;
+    color: $color-text-muted;
+    &:hover:not(:disabled) { background: rgba(var(--color-text-rgb), .14); color: $color-text-on-dark; }
+  }
+}
+
+// ── Zweispaltiger Body ─────────────────────────────────────────────────────
+.gc-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  min-height: 0;
+}
+
+// ── Linke Spalte: Reservierungsdetails ────────────────────────────────────
+.gc-res-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  border-right: 1px solid $color-border;
+}
+
+// ── Rechte Spalte: Gastkarte ──────────────────────────────────────────────
+.gc-profile-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+.gc-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gc-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  color: $color-text-muted;
+}
+
+.gc-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 10px;
+  border: 1px solid;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.gc-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.gc-detail {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: $color-text-on-dark;
+
+  mat-icon {
+    font-size: 15px;
+    width: 15px;
+    height: 15px;
+    color: $color-text-muted;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  &--notes {
+    color: $color-text-muted;
+    font-size: 12px;
+    font-style: italic;
+  }
+}
+
+.gc-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(41, 121, 255, 0.4);
+  background: rgba(41, 121, 255, 0.08);
+  color: $color-primary;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: background .15s;
+
+  mat-icon { font-size: 14px; width: 14px; height: 14px; }
+  &:hover { background: rgba(41, 121, 255, 0.18); }
+}
+
+// Kein Gastkartei-Eintrag
+.gc-no-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+  min-height: 120px;
+  text-align: center;
+  color: $color-text-muted;
+  font-size: 13px;
+
+  mat-icon { font-size: 32px; width: 32px; height: 32px; opacity: 0.35; }
+  small { font-size: 11px; opacity: 0.7; }
+}
+
+.gc-profile-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gc-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.gc-blocked-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gc-blocked-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: $color-text-muted;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+}
+
+// ── E-Mail erneut senden (Gastkarte) ──────────────────────────────────────
+.gc-mail-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid $color-border;
+}
+
+.gc-mail-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: $color-text-muted;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 10px;
+
+  mat-icon { font-size: 15px; width: 15px; height: 15px; }
+}
+
+.gc-mail-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.gc-mail-card {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  border: 1.5px solid $color-border;
+  background: rgba(var(--color-text-rgb), .04);
+  color: $color-text-muted;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .14s, border-color .14s, color .14s;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; flex-shrink: 0; }
+
+  &:hover {
+    background: rgba(var(--color-text-rgb), .08);
+    border-color: rgba(var(--color-text-rgb), .25);
+  }
+
+  &--blue    { --mc: #3b82f6; }
+  &--amber   { --mc: #f59e0b; }
+  &--red     { --mc: #ef4444; }
+  &--grey    { --mc: #6b7280; }
+
+  &--selected {
+    background: color-mix(in srgb, var(--mc, #3b82f6) 15%, transparent);
+    border-color: var(--mc, #3b82f6);
+    color: var(--mc, #3b82f6);
+    font-weight: 600;
+  }
+}
+
+.gc-mail-send-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  width: 100%;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: none;
+  background: $color-primary;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  justify-content: center;
+  transition: opacity .15s;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+  &:disabled { opacity: .55; cursor: default; }
+  &:not(:disabled):hover { opacity: .88; }
+}
+
+.gc-mail-success {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(34, 197, 94, .15);
+  border: 1px solid rgba(34, 197, 94, .35);
+  color: #16a34a;
+  font-size: 12.5px;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+}
+
+.gc-mail-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, .12);
+  border: 1px solid rgba(239, 68, 68, .3);
+  color: #dc2626;
+  font-size: 12.5px;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+}
+
+// Footer-Trennlinie
+.dialog--gc .dialog__actions {
+  padding: 14px 20px;
+  margin-top: 0;
+  border-top: 1px solid $color-border;
+}
+
+// ── Tags ──────────────────────────────────────────────────────────────────
+.gc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gc-tag {
+  --tc: #3b82f6;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid $color-border;
+  background: rgba(var(--color-text-rgb), .06);
+  color: $color-text-muted;
+  transition: background .15s, border-color .15s, color .15s;
+
+  &:hover { border-color: var(--tc); color: var(--tc); }
+
+  &--active {
+    background: color-mix(in srgb, var(--tc) 18%, transparent);
+    border-color: var(--tc);
+    color: var(--tc);
+    font-weight: 600;
+  }
+}
+
+// ── Toggle-Switch ─────────────────────────────────────────────────────────
+.gc-switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 20px;
+
+  input { opacity: 0; width: 0; height: 0; }
+
+  .gc-slider {
+    position: absolute;
+    inset: 0;
+    background: rgba(var(--color-text-rgb), .2);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background .2s;
+
+    &::before {
+      content: '';
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      left: 3px;
+      top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform .2s;
+    }
+  }
+
+  input:checked + .gc-slider {
+    background: $color-primary;
+    &::before { transform: translateX(18px); }
+  }
+}
+
+// ── Gast-Tags in der Reservierungskarte ────────────────────────────────────────
+.res-row__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.res-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  letter-spacing: .02em;
+}
+
+// ── Gast-Autocomplete ──────────────────────────────────────────────────────────
+.guest-autocomplete {
+  position: relative;
+  width: 100%;
+
+  .field__input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+.guest-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: $color-surface;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  z-index: 50;
+  overflow: hidden;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.guest-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background .12s;
+  border-bottom: 1px solid $color-border;
+
+  &:last-child { border-bottom: none; }
+  &:hover { background: $color-surface-soft; }
+
+  &__avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: $color-primary;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  &__info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  &__name {
+    font-size: 13px;
+    font-weight: 500;
+    color: $color-text;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__meta {
+    font-size: 11px;
+    color: $color-text-muted;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__count {
+    font-size: 11px;
+    font-weight: 600;
+    color: $color-text-muted;
+    flex-shrink: 0;
+    background: $color-surface-soft;
+    border: 1px solid $color-border;
+    border-radius: 20px;
+    padding: 1px 7px;
+  }
+}
+
+
+.placed-decor {
+  position: absolute;
+  transform-origin: center center;
+  z-index: 3;
+  pointer-events: none;
+
+  .decor-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    filter: drop-shadow(0 2px 6px rgba(var(--color-primary-rgb), 0.14));
+  }
+}
+
+// ─── Split-Picker ──────────────────────────────────────────────────────────────
+.split-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.split-picker {
+  background: $color-dark;
+  border: 1px solid $color-border;
+  border-radius: 12px;
+  width: 340px;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid $color-border;
+    font-size: 13px;
+    font-weight: 600;
+    color: $color-text-on-dark;
+    flex-shrink: 0;
+  }
+
+  &__close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: $color-text-muted;
+    display: flex;
+    align-items: center;
+    padding: 2px;
+    border-radius: 6px;
+    transition: color 0.15s;
+
+    mat-icon { font-size: 18px; width: 18px; height: 18px; }
+    &:hover { color: $color-text-on-dark; }
+  }
+
+  &__list {
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid $color-border;
+    background: transparent;
+    color: $color-text-on-dark;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, border-color 0.15s;
+
+    mat-icon { font-size: 16px; width: 16px; height: 16px; color: $color-text-muted; flex-shrink: 0; }
+
+    &:hover {
+      background: rgba(var(--color-accent-rgb), 0.12);
+      border-color: $color-accent;
+    }
+  }
+
+  &__name {
+    font-size: 13px;
+    font-weight: 600;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__meta {
+    font-size: 11px;
+    color: $color-text-muted;
+    white-space: nowrap;
+  }
+
+  &__empty {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 24px 16px;
+    font-size: 12px;
+    color: $color-text-muted;
+
+    mat-icon { font-size: 16px; width: 16px; height: 16px; opacity: 0.6; }
+  }
+}
+.sub-filter {
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: 12px;
+  backdrop-filter: blur(6px);
+}
+
+.sub-filter__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sub-filter__chip {
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: #cfd6ff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.sub-filter__chip:hover {
+  background: rgba(41, 121, 255, 0.15);
+  border-color: rgba(41, 121, 255, 0.4);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.sub-filter__chip--active {
+  background: rgba(41, 121, 255, 0.25);
+  border-color: #2979ff;
+  color: #fff;
+}
+
+// ── Reservierungsformular: rf-* Layout-System ────────────────────────────────
+
+// Äußeres 2-Spalten-Grid: linke Detailkarte | rechte Seite (Datum + Tische)
+.rf-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 12px;
+  align-items: stretch;  // linke Karte streckt sich auf volle Höhe
+}
+
+// Rechte Seite: zwei Karten übereinander
+.rf-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+// Karte (Card) mit dunklem Hintergrund, Border und abgerundeten Ecken
+.rf-panel {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid $color-border;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  // Linke Detailkarte: streckt sich auf volle Höhe des Grids
+  &--details {
+    align-self: stretch;
+    height: 100%;
+    box-sizing: border-box;
+    gap: 12px;
+  }
+}
+
+// Kartenüberschrift: Icon + Titel nebeneinander
+.rf-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: $color-text-muted;
+  padding-bottom: 8px;
+  border-bottom: 1px solid $color-border;
+  margin-bottom: 2px;
+
+  svg {
+    width: 15px;
+    height: 15px;
+    color: $color-primary;
+    flex-shrink: 0;
+  }
+
+  // Sitzplatz-Info rechts im Header (Tischauswahl-Karte)
+  .rf-seats-info {
+    margin-left: auto;
+  }
+}
+
+// Datum-&-Uhrzeit-Bereich: Kalender links | Zeit/Personen rechts
+.rf-datetime {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+// Rechte Spalte im Datum-Bereich: Zeit, Personen, Notiz untereinander
+.rf-time-persons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Kleine Abschnittsüberschrift (z. B. „Uhrzeit", „Personen")
+.rf-section-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: $color-text-muted;
+  margin-top: 2px;
+
+  svg {
+    width: 13px;
+    height: 13px;
+    color: $color-primary;
+    flex-shrink: 0;
+  }
+}
+
+// Scrollbarer Container für die Zeitslots
+.rf-time-slots {
+  overflow-y: auto;
+  max-height: 150px;
+  padding-right: 2px;
+}
+
+// Sitzplatz-Infobadge im Tischauswahl-Header
+.rf-seats-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+
+  mat-icon {
+    font-size: 15px;
+    width: 15px;
+    height: 15px;
+  }
+
+  &--ok {
+    color: #22c55e;
+    background: rgba(34, 197, 94, 0.12);
+  }
+
+  &--warn {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+  }
+}
+
+// Tischauswahl-Grid: max 3 Reihen sichtbar, dann scrollen
+// 3 × 68px Karte + 2 × 8px Gap = 220px
+.rf-table-grid {
+  overflow-y: auto;
+  max-height: 228px;
+  padding-right: 2px;
+}
+
+// Notiz-Feld in der Detailkarte — wächst, um den Resträum zu füllen
+.rf-notes {
+  flex: 1 1 auto;  // nimmt den ganzen freien Platz unten ein
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+
+  .field__input {
+    flex: 1 1 auto;
+    resize: none;
+    min-height: 60px;
+  }
+}
+
+// ── Haupt-Layout Mobile Fix ───────────────────────────────────────────────
+@media (max-width: 640px) {
+  .raum-detail {
+    margin: 0;               // kein negatives Margin auf Mobile
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .raum-detail__header {
+    padding: 10px 12px;
+    gap: 10px;
+    flex-wrap: nowrap;
+
+    // Plan-bearbeiten-Button auf Mobile verstecken (zu wenig Platz)
+    a.btn-secondary { display: none; }
+  }
+
+  .raum-detail__title { font-size: 15px; }
+
+  // Body: nur die Reservierungsliste, kein Tischplan
+  .raum-detail__body {
+    grid-template-columns: 1fr;   // nur eine Spalte
+    overflow: hidden;
+  }
+
+  // Tischplan auf Mobile ausblenden
+  .raum-detail__right { display: none; }
+
+  // Reservierungs-Panel volle Breite
+  .res-panel {
+    border-right: none;
+    width: 100%;
+  }
+
+  // Datum-Karte kompakter
+  .date-card {
+    margin: 10px 10px 8px;
+    padding: 10px 10px 8px;
+  }
+
+  .btn-row { margin: 0 10px 8px; }
+  .filter-tabs { padding: 0 10px; }
+  .res-panel__list { padding: 10px 10px 24px; }
+}
+
+// ── Mobile-Indicator: auf Desktop versteckt ──────────────────────────────
+// !important nötig damit Angular-Scoping nicht interferiert
+.rf-mob-indicator,
+.rf-mob-nav { display: none !important; }
+.rf-desktop-actions { display: flex !important; }
+
+// ── Tablet-Layout (641px – 1024px) ───────────────────────────────────────
+@media (max-width: 1024px) and (min-width: 641px) {
+  .dialog--form {
+    width: 94vw;
+    max-height: 94vh;
+  }
+
+  .rf-layout {
+    grid-template-columns: 220px 1fr;
+    gap: 10px;
+  }
+
+  .rf-datetime {
+    grid-template-columns: 1fr;  // Kalender über Zeit/Personen
+    gap: 8px;
+  }
+
+  .rf-table-grid {
+    max-height: 200px;
+  }
+
+  .table-inline {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+// ── Mobile-Layout (≤ 640px) — Step-Wizard ────────────────────────────────
+@media (max-width: 640px) {
+
+  // Dialog: Vollbild, kein Überlauf
+  .dialog--form {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: 100vw;
+    max-height: 100%;
+    border-radius: 0;
+    transform: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  // Backdrop auch auf Mobile
+  .dialog-backdrop {
+    position: fixed;
+    inset: 0;
+  }
+
+  .dialog__title {
+    padding: 16px 16px 0;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  // Step-Indicator
+  .rf-mob-indicator {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 16px 8px;
+    gap: 0;
+    flex-shrink: 0;
+    width: 100%;
+    box-sizing: border-box;
+
+    &__step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      flex-shrink: 0;
+      min-width: 48px;
+
+      &.is-active .rf-mob-indicator__num {
+        background: $color-accent;
+        color: $color-dark;
+        border-color: $color-accent;
+      }
+      &.is-active .rf-mob-indicator__lbl { color: $color-accent; }
+
+      &.is-done .rf-mob-indicator__num {
+        background: rgba(var(--color-accent-rgb), 0.2);
+        border-color: $color-accent;
+        color: $color-accent;
+      }
+    }
+
+    &__num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 1.5px solid $color-border;
+      background: rgba(var(--color-text-rgb), 0.06);
+      color: $color-text-muted;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    &__lbl {
+      font-size: 9px;
+      font-weight: 600;
+      color: $color-text-muted;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      transition: color 0.2s;
+    }
+
+    &__line {
+      flex: 1;
+      height: 1.5px;
+      background: $color-border;
+      margin: 0 4px;
+      margin-bottom: 14px; // optisch mittig zum Kreis
+      transition: background 0.2s;
+
+      &.is-done { background: $color-accent; }
+    }
+  }
+
+  // Form: scrollbarer Bereich
+  .reservation-form {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;          // kein Padding hier, kommt vom Panel
+  }
+
+  // Layout: kein Grid mehr, Kinder stapeln sich
+  .rf-layout {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    width: 100%;
+  }
+
+  .rf-right {
+    display: contents;
+  }
+
+  // Step-Sektionen: alle ausblenden
+  .rf-mob-section {
+    display: none;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px 8px;
+  }
+
+  // Step 1: Kalender — kein Scroll, volle Breite, Höhe automatisch
+  .rf-layout[data-mob-step="1"] .rf-mob-section[data-mob-section="1-2"] {
+    display: block;
+    overflow: visible;
+  }
+  .rf-layout[data-mob-step="1"] .rf-mob-cal  {
+    display: block;
+    width: 100%;
+  }
+  .rf-layout[data-mob-step="1"] .rf-mob-time { display: none; }
+
+  // Step 1: Panel und datetime ohne Scroll, Kalender nimmt volle Breite
+  .rf-layout[data-mob-step="1"] .rf-panel {
+    overflow: visible;
+  }
+  .rf-layout[data-mob-step="1"] .rf-datetime {
+    display: block;
+  }
+  .rf-layout[data-mob-step="1"] .inline-cal {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  // Step 2: Uhrzeit + Personen — scrollbar
+  .rf-layout[data-mob-step="2"] .rf-mob-section[data-mob-section="1-2"] {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .rf-layout[data-mob-step="2"] .rf-mob-cal   { display: none; }
+  .rf-layout[data-mob-step="2"] .rf-mob-time  { display: flex; }
+
+  // Step 3: Details — scrollbar
+  .rf-layout[data-mob-step="3"] .rf-mob-section[data-mob-section="3"] {
+    display: flex;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  // Step 4: Tisch — scrollbar
+  .rf-layout[data-mob-step="4"] .rf-mob-section[data-mob-section="4"] {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  // Panels auf Mobile: volle Breite, kein eigenes Padding (kommt von rf-mob-section)
+  .rf-panel,
+  .rf-panel--details {
+    border-radius: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px;
+  }
+
+  .rf-datetime {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  // Kalender auf Mobile: volle Breite, kein Overflow
+  .inline-cal {
+    border-radius: 8px;
+    padding: 12px 8px 10px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+
+    &__day {
+      font-size: 14px;
+      border-radius: 8px;
+    }
+    &__month-label { font-size: 14px; }
+    &__weekdays span { font-size: 10px; }
+    &__grid { gap: 2px; }
+    &__weekdays { gap: 2px; margin-bottom: 4px; }
+  }
+
+  // Zeit: 4 Spalten, 4 Reihen sichtbar
+  .table-inline--time { grid-template-columns: repeat(4, 1fr) !important; }
+  .table-inline--time .table-inline__card { padding: 14px 6px; }
+  .table-inline--time .table-inline__num  { font-size: 15px; }
+
+  // 4 Reihen sichtbar: 4 × ~48px Karte + 3 × 8px Gap ≈ 216px
+  .rf-time-slots { max-height: 216px !important; }
+
+  .picker-row .table-inline__card { padding: 14px 6px; }
+  .picker-row .table-inline__num  { font-size: 16px; }
+
+  // Tisch-Grid: 4 Spalten auf Mobile
+  .table-inline { grid-template-columns: repeat(4, 1fr); }
+  .rf-table-grid { max-height: none; }
+
+  // Desktop-Actions verstecken, Mobile-Nav zeigen
+  .rf-desktop-actions { display: none !important; }
+  .rf-mob-nav {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 12px 20px;
+    flex-shrink: 0;
+    border-top: 1px solid $color-border;
+    background: $color-surface;
+
+    &__back {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: 1px solid $color-border;
+      background: rgba(var(--color-text-rgb), 0.06);
+      color: $color-text-on-dark;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+
+      mat-icon { font-size: 16px; width: 16px; height: 16px; }
+    }
+
+    &__next {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: 1px solid rgba(var(--color-primary-rgb), 0.55);
+      background: rgba(var(--color-primary-rgb), 0.10);
+      color: $color-primary;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      box-shadow: 0 0 10px rgba(var(--color-primary-rgb), 0.18),
+                  inset 0 0 0 1px rgba(var(--color-primary-rgb), 0.08);
+      transition: all 0.2s ease;
+
+      &:hover {
+        border-color: $color-primary;
+        background: rgba(var(--color-primary-rgb), 0.16);
+        box-shadow: 0 0 16px rgba(var(--color-primary-rgb), 0.30),
+                    inset 0 0 0 1px rgba(var(--color-primary-rgb), 0.12);
+      }
+
+      mat-icon { font-size: 16px; width: 16px; height: 16px; }
+    }
+
+    &__submit {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 20px;
+      border-radius: 8px;
+      border: none;
+      background: $color-accent;
+      color: $color-dark;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+  }
+}
+
+// ── Status-Bar (immer sichtbar, außerhalb des Filters) ───────────────────────
+.status-bar {
+  padding: 0 14px 16px;
+
+  &__chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+}
+
+// ── Filter-Toggle ────────────────────────────────────────────────────────────
+.filter-toggle-wrap {
+  padding: 0 14px 6px;
+}
+
+.filter-toggle-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid $color-border;
+  background: rgba(var(--color-text-rgb), 0.04);
+  color: $color-text-muted;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  > span { flex: 1; text-align: left; }
+
+  &:hover {
+    background: rgba(var(--color-primary-rgb), 0.08);
+    border-color: rgba(var(--color-primary-rgb), 0.35);
+    color: $color-primary;
+  }
+
+  &--open {
+    background: rgba(var(--color-primary-rgb), 0.12);
+    border-color: rgba(var(--color-primary-rgb), 0.4);
+    color: $color-primary;
+    box-shadow: 0 0 0 1px rgba(var(--color-primary-rgb), 0.15);
+  }
+
+  &__arrow {
+    font-size: 16px !important;
+    width: 16px !important;
+    height: 16px !important;
+    margin-left: auto;
+    transition: transform 0.2s ease;
+  }
+}
+
+// ── Filter-Panel ─────────────────────────────────────────────────────────────
+.filter-panel {
+  margin: 0 14px 8px;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid $color-border;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  &__label {
+    font-size: 10px;
+    font-weight: 700;
+    color: $color-text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 10px;
+  }
+
+  &__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  &__count {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(var(--color-accent-rgb), 0.22);
+    color: $color-accent;
+    padding: 0 5px;
+    border-radius: 999px;
+    margin-left: 4px;
+    line-height: 1.7;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  HELLMODUS — res-panel: alle Elemente klarer & kontrastreicher
+//  :host-context scoped auf body ohne Dim/Dark-Klasse
+// ═══════════════════════════════════════════════════════════════════════════
+:host-context(body:not(.dim-theme):not(.dark-theme)) {
+
+  // ── Panel-Hintergrund: sichtbare rechte Trennlinie ──────────────────────
+  .res-panel {
+    background: var(--color-dark);
+    border-right: 1px solid rgba(0, 0, 0, 0.12);
+  }
+
+  // ── Datum-Karte: deutlicheres Primärblau-Gradient + Rahmen ───────────────
+  .date-card {
+    background: linear-gradient(135deg,
+      rgba(var(--color-primary-rgb), 0.10),
+      rgba(var(--color-primary-rgb), 0.04));
+    border: 1px solid rgba(var(--color-primary-rgb), 0.22);
+    box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.08);
+
+    &__label { color: #111; }
+    &__summary { color: rgba(0, 0, 0, 0.55); }
+  }
+
+  // ── Zeitgruppen-Trennzeile: sichtbarer ──────────────────────────────────
+  .time-group {
+    &__header {
+      background: var(--color-dark);
+    }
+    &__hour {
+      color: rgba(0, 0, 0, 0.50);
+      font-size: 11.5px;
+    }
+    &__line {
+      background: rgba(0, 0, 0, 0.14);
+    }
+    &__count {
+      background: rgba(0, 0, 0, 0.07);
+      color: rgba(0, 0, 0, 0.55);
+      font-weight: 700;
+    }
+  }
+
+  // ── Reservierungs-Karten: weiß + deutlicher Schatten ────────────────────
+  .res-row {
+    background: #ffffff;
+    border-color: rgba(0, 0, 0, 0.10);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+
+    &:hover {
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.11);
+    }
+
+    &__name  { color: #111111; font-weight: 600; }
+    &__party { color: rgba(0, 0, 0, 0.50); }
+    &__sub   { color: rgba(0, 0, 0, 0.50); }
+  }
+
+  // ── Status-Badge (Aktiv / Verspätet / …) in Karten ──────────────────────
+  .res-row__status-badge {
+    font-weight: 700;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.20);
+  }
+
+  // ── Filter-Tabs ──────────────────────────────────────────────────────────
+  .filter-tabs {
+    border-bottom-color: rgba(0, 0, 0, 0.10);
+
+    button {
+      color: rgba(0, 0, 0, 0.45);
+      border: 1px solid transparent;
+
+      &:hover {
+        color: rgba(0, 0, 0, 0.75);
+        background: rgba(0, 0, 0, 0.05);
+        border-color: transparent;
+      }
+
+      &.active {
+        color: rgba(0, 0, 0, 0.80);
+        background: rgba(0, 0, 0, 0.07);
+        border-color: rgba(0, 0, 0, 0.14);
+      }
+    }
+  }
+
+  .filter-tabs__badge {
+    background: rgba(0, 0, 0, 0.09);
+    color: rgba(0, 0, 0, 0.60);
+  }
+
+  // ── Leer-Zustand ────────────────────────────────────────────────────────
+  .res-empty {
+    color: rgba(0, 0, 0, 0.40);
+    p { color: rgba(0, 0, 0, 0.65); }
+  }
+
+  // ── Freie-Slot-Einträge (Tagesübersicht-Sidebar) ─────────────────────────
+  .tl-free-slot {
+    background: #ffffff;
+    border-color: rgba(0, 0, 0, 0.10);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+
+    &__time  { color: #111111; }
+    &__count { color: rgba(0, 0, 0, 0.45); }
+
+    &__btn {
+      background: rgba(var(--color-primary-rgb), 0.10);
+      border-color: rgba(var(--color-primary-rgb), 0.40);
+      color: var(--color-primary);
+      font-weight: 600;
+
+      &:hover { background: rgba(var(--color-primary-rgb), 0.18); }
+    }
+  }
+
+  // ── Freie-Slot-Panel Header ───────────────────────────────────────────────
+  .tl-free-panel {
+    background: var(--color-dark);
+    border-left-color: rgba(0, 0, 0, 0.12);
+
+    &__head {
+      color: #111;
+      border-bottom-color: rgba(0, 0, 0, 0.10);
+    }
+  }
+
+  // ── Neue-RV + Walk-In Buttons: dezent aber sichtbar ─────────────────────
+  .btn-new {
+    background: rgba(var(--color-primary-rgb), 0.07);
+    border-color: rgba(var(--color-primary-rgb), 0.30);
+    box-shadow: none;
+
+    &:hover {
+      background: rgba(var(--color-primary-rgb), 0.13);
+      border-color: rgba(var(--color-primary-rgb), 0.50);
+      box-shadow: none;
+    }
+
+    &--walkin {
+      background: rgba(var(--color-accent-rgb), 0.07);
+      border-color: rgba(var(--color-accent-rgb), 0.30);
+
+      &:hover {
+        background: rgba(var(--color-accent-rgb), 0.13);
+        border-color: rgba(var(--color-accent-rgb), 0.50);
+      }
+    }
+  }
+
+  // ── Aktions-Buttons in den Karten ────────────────────────────────────────
+  .action {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: rgba(0, 0, 0, 0.55);
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.09);
+      color: #111;
+    }
+  }
+
+  // ── Filter-Toggle-Button ─────────────────────────────────────────────────
+  .filter-toggle-btn {
+    background: #ffffff;
+    border-color: rgba(0, 0, 0, 0.14);
+    color: rgba(0, 0, 0, 0.60);
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.04);
+      border-color: rgba(0, 0, 0, 0.22);
+      color: rgba(0, 0, 0, 0.80);
+    }
+
+    &--open {
+      background: rgba(0, 0, 0, 0.05);
+      border-color: rgba(0, 0, 0, 0.22);
+      color: rgba(0, 0, 0, 0.80);
+      box-shadow: none;
+    }
+  }
+
+  // ── Filter-Panel (aufgeklappt) ────────────────────────────────────────────
+  .filter-panel {
+    background: #ffffff;
+    border-color: rgba(0, 0, 0, 0.10);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+
+    &__label {
+      color: rgba(0, 0, 0, 0.40);
+    }
+  }
+
+  // ── Status-Bar Chips (Aktiv / Verspätet / …) ─────────────────────────────
+  .sub-filter__chip {
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    color: rgba(0, 0, 0, 0.60);
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.05);
+      border-color: rgba(0, 0, 0, 0.25);
+      color: rgba(0, 0, 0, 0.85);
+      transform: translateY(-1px);
+    }
+  }
+
+  .sub-filter__chip--active {
+    background: rgba(var(--color-primary-rgb), 0.10);
+    border-color: rgba(var(--color-primary-rgb), 0.40);
+    color: var(--color-primary);
+  }
+
+  // ── Filter-Panel Count-Badge (Anzahl neben Chips) ─────────────────────────
+  // $color-accent = #ffb700 (gelb) → auf Weiß kaum sichtbar → dunkles Neutral
+  .filter-panel__count {
+    background: rgba(0, 0, 0, 0.10);
+    color: rgba(0, 0, 0, 0.65);
   }
 }

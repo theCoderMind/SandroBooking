@@ -1,23 +1,913 @@
+<!-- ── Header ───────────────────────────────────────────────────────────── -->
 <div class="settings-block">
   <div class="page-hero">
     <div class="page-hero__icon"><mat-icon>groups</mat-icon></div>
     <div>
-      <h2 class="page-hero__title">Kunden / CRM</h2>
-      <p class="page-hero__sub">
-        Deine Gäste in einer zentralen Übersicht — mit Historie, Tags, Vorlieben
-        und Kennzahlen. So erkennst du Stammgäste beim Einchecken und kannst
-        gezielt kommunizieren.
-      </p>
+      <h2 class="page-hero__title">{{ 'kunden.title' | translate }}</h2>
+      <p class="page-hero__sub">{{ 'kunden.subtitle' | translate }}</p>
     </div>
-    <span class="soon-pill">In Vorbereitung</span>
-  </div>
-
-  <div class="feature-list">
-    @for (f of features; track f.label) {
-      <div class="feature">
-        <div class="feature__icon"><mat-icon>{{ f.icon }}</mat-icon></div>
-        <span>{{ f.label }}</span>
-      </div>
-    }
   </div>
 </div>
+
+<!-- ── Geburtstags-Alert ────────────────────────────────────────────────── -->
+@if (birthdayGuests().length > 0) {
+  <div class="birthday-alert">
+    <span class="birthday-alert__icon">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+        <path d="M12 2c0 0-1.5 2-1.5 3.2a1.5 1.5 0 0 0 3 0C13.5 4 12 2 12 2z"/>
+        <rect x="11" y="5.5" width="2" height="3" rx=".4"/>
+        <rect x="6" y="9" width="12" height="4" rx="1.2"/>
+        <path d="M6 10.5 Q7.5 12 9 10.5 Q10.5 12 12 10.5 Q13.5 12 15 10.5 Q16.5 12 18 10.5" stroke="currentColor" stroke-width=".8" fill="none" opacity=".35"/>
+        <rect x="4" y="13" width="16" height="5" rx="1.2"/>
+        <path d="M4 14.5 Q5.5 16 7 14.5 Q8.5 16 10 14.5 Q11.5 16 13 14.5 Q14.5 16 16 14.5 Q17.5 16 19 14.5 Q20 16 20 14.5" stroke="currentColor" stroke-width=".8" fill="none" opacity=".35"/>
+        <rect x="3" y="18" width="18" height="1.5" rx=".75"/>
+      </svg>
+    </span>
+    <div class="birthday-alert__text">
+      <strong>{{ 'kunden.birthday_today' | translate }}</strong>
+      @for (g of birthdayGuests(); track g.id; let last = $last) {
+        <span class="birthday-alert__name" (click)="openEdit(g)">{{ g.name }}</span>@if (!last) { <span>, </span> }
+      }
+    </div>
+  </div>
+}
+
+@if (weddingGuests().length > 0) {
+  <div class="birthday-alert birthday-alert--wedding">
+    <span class="birthday-alert__icon">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+        <path d="M12 4 L15.5 8.5 H8.5 Z"/>
+        <path d="M8.5 8.5 L12 4 L7 8.5 Z" opacity=".6"/>
+        <path d="M15.5 8.5 L12 4 L17 8.5 Z" opacity=".6"/>
+        <path fill-rule="evenodd" d="M12 10a6 6 0 1 0 0 12 6 6 0 0 0 0-12zm0 2.2a3.8 3.8 0 1 1 0 7.6 3.8 3.8 0 0 1 0-7.6z"/>
+        <path d="M8.5 8.5 H15.5 L14 10.4 H10 Z"/>
+      </svg>
+    </span>
+    <div class="birthday-alert__text">
+      <strong>{{ 'kunden.anniversary_today' | translate }}</strong>
+      @for (g of weddingGuests(); track g.id; let last = $last) {
+        <span class="birthday-alert__name" (click)="openEdit(g)">{{ g.name }}</span>@if (!last) { <span>, </span> }
+      }
+    </div>
+  </div>
+}
+
+<!-- ── Kundenliste ──────────────────────────────────────────────────────── -->
+<div class="settings-block guest-block">
+
+  <!-- ── Topbar: Titel + Suche ──────────────────────────────────────────── -->
+  <div class="guest-topbar">
+    <div class="guest-topbar__left">
+      <h2 class="guest-topbar__title">{{ 'kunden.all_customers' | translate }}</h2>
+      @if (!loading()) {
+        <span class="guest-count">
+          {{ filteredGuests().length }}
+          @if (activeFilter() !== 'alle') { <span class="guest-count__of">von {{ total() }}</span> }
+          {{ 'kunden.entries' | translate }}
+        </span>
+      }
+    </div>
+
+    <div class="guest-search">
+      <mat-icon class="guest-search__icon">search</mat-icon>
+      <input
+        class="guest-search__input"
+        type="text"
+        [placeholder]="'kunden.search_ph' | translate"
+        [(ngModel)]="searchInput"
+        (keyup.enter)="onSearch()"
+        (input)="onSearch()" />
+      @if (searchInput) {
+        <button class="guest-search__clear" (click)="clearSearch()">
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- ── Filter-Chips ─────────────────────────────────────────────────────── -->
+  <div class="filter-chips">
+
+    <button class="filter-chip filter-chip--alle"
+            [class.filter-chip--active]="activeFilter() === 'alle'"
+            (click)="activeFilter.set('alle')">
+      <mat-icon>people</mat-icon>
+      {{ 'common.all' | translate }}
+      <span class="filter-chip__count">{{ filterCounts().alle }}</span>
+    </button>
+
+    <button class="filter-chip filter-chip--vip"
+            [class.filter-chip--active]="activeFilter() === 'vip'"
+            (click)="activeFilter.set('vip')">
+      <mat-icon>workspace_premium</mat-icon>
+      {{ 'kunden.vip' | translate }}
+      <span class="filter-chip__count">{{ filterCounts().vip }}</span>
+    </button>
+
+    <button class="filter-chip filter-chip--stammgast"
+            [class.filter-chip--active]="activeFilter() === 'stammgast'"
+            (click)="activeFilter.set('stammgast')">
+      <mat-icon>star</mat-icon>
+      {{ 'kunden.regulars' | translate }}
+      <span class="filter-chip__count">{{ filterCounts().stammgast }}</span>
+    </button>
+
+    <button class="filter-chip filter-chip--neukunde"
+            [class.filter-chip--active]="activeFilter() === 'neukunde'"
+            (click)="activeFilter.set('neukunde')">
+      <mat-icon>person_add</mat-icon>
+      {{ 'kunden.new_customers' | translate }}
+      <span class="filter-chip__count">{{ filterCounts().neukunde }}</span>
+    </button>
+
+    <button class="filter-chip filter-chip--noshows"
+            [class.filter-chip--active]="activeFilter() === 'noshows'"
+            (click)="activeFilter.set('noshows')">
+      <mat-icon>event_busy</mat-icon>
+      {{ 'kunden.no_shows' | translate }}
+      <span class="filter-chip__count">{{ filterCounts().noshows }}</span>
+    </button>
+
+    <button class="filter-chip filter-chip--gesperrt"
+            [class.filter-chip--active]="activeFilter() === 'gesperrt'"
+            (click)="activeFilter.set('gesperrt')">
+      <mat-icon>block</mat-icon>
+      {{ 'kunden.blocked' | translate }}
+      <span class="filter-chip__count">{{ filterCounts().gesperrt }}</span>
+    </button>
+
+    @if (filterCounts().geburtstag > 0) {
+      <button class="filter-chip filter-chip--geburtstag"
+              [class.filter-chip--active]="activeFilter() === 'geburtstag'"
+              (click)="activeFilter.set('geburtstag')">
+        <mat-icon>cake</mat-icon>
+        {{ 'kunden.birthday_label' | translate }}
+        <span class="filter-chip__count">{{ filterCounts().geburtstag }}</span>
+      </button>
+    }
+
+    @if (filterCounts().jahrestag > 0) {
+      <button class="filter-chip filter-chip--jahrestag"
+              [class.filter-chip--active]="activeFilter() === 'jahrestag'"
+              (click)="activeFilter.set('jahrestag')">
+        <mat-icon>favorite</mat-icon>
+        {{ 'kunden.anniversary_label' | translate }}
+        <span class="filter-chip__count">{{ filterCounts().jahrestag }}</span>
+      </button>
+    }
+
+  </div>
+
+  @if (loading()) {
+    <div class="guest-loading">
+      <span class="spinner"></span> {{ 'common.loading' | translate }}
+    </div>
+  }
+
+  @if (!loading() && filteredGuests().length === 0) {
+    <div class="guest-empty">
+      <mat-icon>{{ activeFilter() === 'alle' ? 'person_off' : 'filter_list_off' }}</mat-icon>
+      <p>{{ activeFilter() === 'alle' ? ('kunden.no_customers' | translate) : ('kunden.no_filter_results' | translate) }}</p>
+    </div>
+  }
+
+  @if (!loading() && filteredGuests().length > 0) {
+    <div class="guest-table-wrap">
+      <table class="guest-table">
+        <thead>
+          <tr>
+            <th>{{ 'kunden.guest' | translate }}</th>
+            <th>{{ 'kunden.contact' | translate }}</th>
+            <th>{{ 'kunden.tags' | translate }}</th>
+            <th class="col-num">{{ 'kunden.bookings' | translate }}</th>
+            <th class="col-num">{{ 'kunden.no_shows' | translate }}</th>
+            <th class="col-num">{{ 'kunden.reliability' | translate }}</th>
+            <th>{{ 'kunden.status' | translate }}</th>
+            <th>{{ 'kunden.since' | translate }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (g of filteredGuests(); track g.id) {
+            <tr [class.row--blocked]="g.blocked" (click)="openEdit(g)" class="row--clickable">
+              <!-- Gast -->
+              <td>
+                <div class="guest-cell">
+                  <div class="guest-avatar" [class.avatar--blocked]="g.blocked">
+                    {{ initials(g.name) }}
+                  </div>
+                  <div class="guest-info">
+                    <span class="guest-name">{{ g.name }}</span>
+                    @if (g.internal_notes) {
+                      <span class="guest-notes">{{ g.internal_notes }}</span>
+                    }
+                  </div>
+                </div>
+              </td>
+
+              <!-- Kontakt -->
+              <td>
+                <div class="contact-cell">
+                  <span class="contact-email">{{ g.email }}</span>
+                  @if (g.phone) {
+                    <span class="contact-phone">{{ g.phone }}</span>
+                  }
+                </div>
+              </td>
+
+              <!-- Tags -->
+              <td>
+                <div class="tag-list">
+                  @for (t of getGasttypenLabels(g.gasttypen); track t.key) {
+                    <span class="tag-pill" [style.background]="t.color + '22'" [style.color]="t.color" [style.border-color]="t.color + '55'">
+                      {{ t.label }}
+                    </span>
+                  }
+                  @for (h of getHinweiseLabels(g.hinweise); track h.key) {
+                    <span class="tag-pill tag-pill--hinweis" [style.background]="h.color + '22'" [style.color]="h.color" [style.border-color]="h.color + '55'">
+                      {{ h.label }}
+                    </span>
+                  }
+                  @for (a of getAllergeneLabels(g.allergene); track a.key) {
+                    <span class="tag-pill tag-pill--allergen" [style.background]="a.color + '22'" [style.color]="a.color" [style.border-color]="a.color + '55'">
+                      ⚠ {{ a.label }}
+                    </span>
+                  }
+                </div>
+              </td>
+
+              <!-- Buchungen -->
+              <td class="col-num">
+                <span class="num-badge">{{ g.total_reservations }}</span>
+              </td>
+
+              <!-- No-Shows -->
+              <td class="col-num">
+                @if (g.no_show_count > 0) {
+                  <span class="num-badge num-badge--warn">{{ g.no_show_count }}</span>
+                } @else {
+                  <span class="num-badge num-badge--muted">0</span>
+                }
+              </td>
+
+              <!-- Zuverlässigkeit -->
+              <td class="col-num">
+                <div class="score-wrap">
+                  <span class="score-bar">
+                    <span class="score-bar__fill" [class]="reliabilityClass(g.reliability_score)"
+                          [style.width.%]="g.reliability_score"></span>
+                  </span>
+                  <span class="score-label" [class]="reliabilityClass(g.reliability_score)">{{ g.reliability_score }}%</span>
+                </div>
+              </td>
+
+              <!-- Status -->
+              <td>
+                @if (g.blocked) {
+                  <span class="status-pill status-pill--blocked">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 5h2v6h-2zm0 8h2v2h-2z"/></svg>
+                    {{ 'kunden.blocked_label' | translate }}
+                  </span>
+                } @else if (isVip(g)) {
+                  <span class="status-pill status-pill--vip">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L9.5 8.5H2l6 4.5-2.5 7.5L12 16l6.5 4.5-2.5-7.5 6-4.5h-7.5z"/></svg>
+                    {{ 'kunden.vip' | translate }}
+                  </span>
+                } @else if (isRegular(g)) {
+                  <span class="status-pill status-pill--ok">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                    {{ 'kunden.regulars' | translate }}
+                  </span>
+                } @else {
+                  <span class="status-pill status-pill--new">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
+                    {{ 'kunden.new_customers' | translate }}
+                  </span>
+                }
+              </td>
+
+              <!-- Seit -->
+              <td class="col-date">{{ formatDate(g.created_at) }}</td>
+
+              <!-- Aktionen -->
+              <td class="col-actions" (click)="$event.stopPropagation()">
+                <button class="icon-button" (click)="openEdit(g)" [title]="'common.edit' | translate">
+                  <mat-icon>edit</mat-icon>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- ── Gast-Profil Modal ──────────────────────────────────────────────────── -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+@if (editModal()) {
+  <div class="modal-backdrop" (click)="closeEdit()">
+    <div class="profile-modal" (click)="$event.stopPropagation()">
+
+      <!-- ════════════════════════════════════════════════════════
+           LINKE SIDEBAR: Avatar · Info · Stats
+      ════════════════════════════════════════════════════════ -->
+      <div class="profile-sidebar" [class.profile-sidebar--blocked]="editTarget()?.blocked">
+
+        <!-- Avatar + Name -->
+        <div class="sidebar-hero">
+          <div class="profile-avatar" [class.profile-avatar--blocked]="editTarget()?.blocked">
+            {{ initials(editTarget()?.name ?? '') }}
+          </div>
+          <div class="sidebar-hero__info">
+            <h3 class="profile-name">{{ editTarget()?.name }}</h3>
+            <div class="profile-badges">
+              @if (editTarget()?.blocked) {
+                <span class="profile-badge profile-badge--blocked"><mat-icon>block</mat-icon> {{ 'kunden.blocked_label' | translate }}</span>
+              } @else if (isVip(editTarget()!)) {
+                <span class="profile-badge profile-badge--vip"><mat-icon>workspace_premium</mat-icon> {{ 'kunden.vip' | translate }}</span>
+              } @else if (isRegular(editTarget()!)) {
+                <span class="profile-badge profile-badge--regular"><mat-icon>star</mat-icon> {{ 'kunden.regulars' | translate }}</span>
+              } @else {
+                <span class="profile-badge profile-badge--new">{{ 'kunden.new_customers' | translate }}</span>
+              }
+            </div>
+          </div>
+        </div>
+
+        <!-- Kontakt -->
+        <div class="sidebar-meta">
+          <a class="sidebar-meta__row sidebar-meta__row--link"
+             [href]="'mailto:' + editTarget()?.email"
+             (click)="$event.stopPropagation()">
+            <mat-icon>mail</mat-icon>
+            <span>{{ editTarget()?.email }}</span>
+          </a>
+          @if (editTarget()?.phone) {
+            <div class="sidebar-meta__row">
+              <mat-icon>phone</mat-icon>
+              <span>{{ editTarget()?.phone }}</span>
+            </div>
+          }
+          @if (editTarget()?.birthday) {
+            <div class="sidebar-meta__row">
+              <mat-icon>cake</mat-icon>
+              <span>{{ formatDate(editTarget()?.birthday ?? null) }}</span>
+            </div>
+          }
+          <div class="sidebar-meta__row sidebar-meta__row--muted">
+            <mat-icon>calendar_today</mat-icon>
+            <span>{{ 'kunden.since' | translate }} {{ editTarget()?.created_at }}</span>
+          </div>
+        </div>
+
+        <div class="sidebar-divider"></div>
+
+        <!-- Stats-Grid 2×4 -->
+        <div class="sidebar-stats">
+          <div class="sstat">
+            <span class="sstat__icon sstat__icon--blue"><mat-icon>event_available</mat-icon></span>
+            <span class="sstat__val">{{ editTarget()?.total_reservations }}</span>
+            <span class="sstat__lbl">{{ 'kunden.bookings' | translate }}</span>
+          </div>
+          <div class="sstat" [class.sstat--warn]="(editTarget()?.no_show_count ?? 0) > 0">
+            <span class="sstat__icon sstat__icon--red"><mat-icon>event_busy</mat-icon></span>
+            <span class="sstat__val">{{ editTarget()?.no_show_count }}</span>
+            <span class="sstat__lbl">{{ 'kunden.no_shows' | translate }}</span>
+          </div>
+          <div class="sstat">
+            <span class="sstat__icon sstat__icon--orange"><mat-icon>cancel_schedule_send</mat-icon></span>
+            <span class="sstat__val">{{ editTarget()?.cancellation_rate ?? 0 }}%</span>
+            <span class="sstat__lbl">{{ 'kunden.cancellations' | translate }}</span>
+          </div>
+          <div class="sstat">
+            <span class="sstat__icon sstat__icon--green"><mat-icon>euro</mat-icon></span>
+            <span class="sstat__val">{{ formatRevenue(editTarget()?.total_revenue_cents ?? 0) }}</span>
+            <span class="sstat__lbl">{{ 'kunden.revenue' | translate }}</span>
+          </div>
+          <div class="sstat">
+            <span class="sstat__icon" [ngClass]="{
+              'sstat__icon--green':  reliabilityClass(editTarget()?.reliability_score ?? 100) === 'score--green',
+              'sstat__icon--yellow': reliabilityClass(editTarget()?.reliability_score ?? 100) === 'score--yellow',
+              'sstat__icon--red':    reliabilityClass(editTarget()?.reliability_score ?? 100) === 'score--red'
+            }"><mat-icon>verified_user</mat-icon></span>
+            <span class="sstat__val" [class]="reliabilityClass(editTarget()?.reliability_score ?? 100)">{{ editTarget()?.reliability_score }}%</span>
+            <span class="sstat__lbl">{{ 'kunden.reliability' | translate }}</span>
+          </div>
+          <div class="sstat">
+            <span class="sstat__icon sstat__icon--purple"><mat-icon>history</mat-icon></span>
+            <span class="sstat__val">{{ formatDate(editTarget()?.last_visit_at ?? null) }}</span>
+            <span class="sstat__lbl">{{ 'kunden.last_visit' | translate }}</span>
+          </div>
+          <div class="sstat">
+            <span class="sstat__icon sstat__icon--teal"><mat-icon>group</mat-icon></span>
+            <span class="sstat__val">{{ formatAvgPartySize(avgPartySize()) }}</span>
+            <span class="sstat__lbl">{{ 'kunden.avg_group_size' | translate }}</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════
+           RECHTES PANEL: Titelzeile · Tabs · Inhalt · Footer
+      ════════════════════════════════════════════════════════ -->
+      <div class="profile-main">
+
+        <!-- Titelzeile -->
+        <div class="profile-main__topbar">
+          <span class="profile-main__title">Kundenprofil</span>
+          <button class="profile-close" (click)="closeEdit()" [title]="'common.close' | translate">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+
+        <!-- ── Tabs ─────────────────────────────────────────────────────────── -->
+        <div class="profile-tabs">
+          <button class="profile-tab" [class.profile-tab--active]="activeTab() === 'profil'" (click)="setTab('profil')">
+            <mat-icon>person</mat-icon> {{ 'kunden.profile_tab' | translate }}
+          </button>
+          <button class="profile-tab" [class.profile-tab--active]="activeTab() === 'hinweise'" (click)="setTab('hinweise')">
+            <mat-icon>label</mat-icon> {{ 'kunden.tags_tab' | translate }}
+            @if ((editTarget()?.hinweise?.length ?? 0) + (editTarget()?.gasttypen?.length ?? 0) + (editTarget()?.allergene?.length ?? 0) > 0) {
+              <span class="tab-badge">{{ (editTarget()?.hinweise?.length ?? 0) + (editTarget()?.gasttypen?.length ?? 0) + (editTarget()?.allergene?.length ?? 0) }}</span>
+            }
+          </button>
+          <button class="profile-tab" [class.profile-tab--active]="activeTab() === 'reservierungen'" (click)="setTab('reservierungen')">
+            <mat-icon>calendar_month</mat-icon> {{ 'kunden.reservations_tab' | translate }}
+            @if (editTarget()?.total_reservations) {
+              <span class="tab-badge">{{ editTarget()?.total_reservations }}</span>
+            }
+          </button>
+          <button class="profile-tab profile-tab--reminder" [class.profile-tab--active]="activeTab() === 'erinnerungen'" (click)="setTab('erinnerungen')">
+            <mat-icon>notifications</mat-icon> Erinnerungen
+            @if (guestReminders().length > 0) {
+              <span class="tab-badge tab-badge--reminder">{{ guestReminders().length }}</span>
+            }
+          </button>
+          <button class="profile-tab profile-tab--mail" [class.profile-tab--active]="activeTab() === 'email'" (click)="setTab('email')">
+            <mat-icon>send</mat-icon> E-Mail
+          </button>
+        </div>
+
+        <!-- ── Tab-Inhalt ───────────────────────────────────────────────────── -->
+        <div class="profile-body">
+
+          <!-- ═══ TAB: Profil ════════════════════════════════════════════════ -->
+          @if (activeTab() === 'profil') {
+            <div class="tab-content">
+
+              <div class="field-grid field-grid--3">
+
+                <!-- Name (Spalte 1–2) -->
+                <label class="field field--span2">
+                  <span class="field__label">Name *</span>
+                  <input type="text" [placeholder]="'kunden.search_placeholder' | translate"
+                         [ngModel]="editName()" (ngModelChange)="editName.set($event)" />
+                </label>
+
+                <!-- Telefon (Spalte 3) -->
+                <label class="field">
+                  <span class="field__label">{{ 'kunden.phone' | translate }}</span>
+                  <input type="tel" placeholder="+49 123 456789"
+                         [ngModel]="editPhone()" (ngModelChange)="editPhone.set($event)" />
+                </label>
+
+                <!-- E-Mail (readonly, volle Breite) -->
+                <label class="field field--full">
+                  <span class="field__label">E-Mail</span>
+                  <input type="text" [value]="editTarget()?.email ?? ''" disabled class="field__disabled" />
+                </label>
+
+                <!-- Geburtstag -->
+                <label class="field">
+                  <span class="field__label field__label--icon">
+                    <mat-icon>cake</mat-icon> {{ 'kunden.birthday' | translate }}
+                  </span>
+                  <input type="date"
+                         [ngModel]="editBirthday()" (ngModelChange)="editBirthday.set($event)" />
+                </label>
+
+                <!-- Hochzeitstag -->
+                <label class="field">
+                  <span class="field__label field__label--icon">
+                    <mat-icon>favorite</mat-icon> {{ 'kunden.anniversary' | translate }}
+                  </span>
+                  <input type="date"
+                         [ngModel]="editWeddingDate()" (ngModelChange)="editWeddingDate.set($event)" />
+                </label>
+
+                <!-- Interne Notiz (volle Breite) -->
+                <label class="field field--full">
+                  <span class="field__label">{{ 'kunden.hints_notes' | translate }}</span>
+                  <textarea rows="3" [placeholder]="'kunden.hints_hint' | translate"
+                            [ngModel]="editNotes()" (ngModelChange)="editNotes.set($event)"></textarea>
+                </label>
+
+              </div>
+
+              <!-- Gesperrt-Toggle -->
+              <div class="field field--toggle" [class.field--toggle-danger]="editBlocked()">
+                <div class="toggle-info">
+                  <mat-icon [class.toggle-icon--blocked]="editBlocked()">block</mat-icon>
+                  <div>
+                    <span class="field__label">{{ 'kunden.block_guest' | translate }}</span>
+                    <span class="field__sub">{{ 'kunden.blocked_label' | translate }}</span>
+                  </div>
+                </div>
+                <label class="switch">
+                  <input type="checkbox"
+                         [checked]="editBlocked()"
+                         (change)="editBlocked.set(!editBlocked())" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              @if (editBlocked()) {
+                <label class="field field--full">
+                  <span class="field__label">{{ 'kunden.block_reason' | translate }}</span>
+                  <input type="text" [placeholder]="'kunden.block_reason' | translate"
+                         [ngModel]="editReason()" (ngModelChange)="editReason.set($event)" />
+                </label>
+              }
+
+            </div>
+          }
+
+        <!-- ═══ TAB: Hinweise ═════════════════════════════════════════════════ -->
+        @if (activeTab() === 'hinweise') {
+          <div class="tab-content">
+
+            <!-- Gasttypen -->
+            @if (availableGasttypen().length > 0) {
+              <div class="hints-section">
+                <h4 class="hints-section__title">{{ 'kunden.guest_type' | translate }}</h4>
+                <div class="hints-grid">
+                  @for (t of availableGasttypen(); track t.key) {
+                    <button type="button"
+                            class="hint-card"
+                            [class.hint-card--active]="editGasttypen().includes(t.key)"
+                            [class.hint-card--inactive]="!editGasttypen().includes(t.key)"
+                            [style.--hint-color]="t.color"
+                            (click)="toggleGasttyp(t.key)">
+                      <span class="hint-card__dot"></span>
+                      <span class="hint-card__label">{{ t.label }}</span>
+                      @if (editGasttypen().includes(t.key)) {
+                        <mat-icon class="hint-card__check">check</mat-icon>
+                      }
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+
+            <!-- Hinweise -->
+            @if (availableHinweise().length > 0) {
+              <div class="hints-section">
+                <h4 class="hints-section__title">{{ 'kunden.hints_notes' | translate }}</h4>
+                <p class="hints-section__sub">{{ 'kunden.hints_hint' | translate }}</p>
+                <div class="hints-grid">
+                  @for (h of availableHinweise(); track h.key) {
+                    <button type="button"
+                            class="hint-card"
+                            [class.hint-card--active]="editHinweise().includes(h.key)"
+                            [class.hint-card--inactive]="!editHinweise().includes(h.key)"
+                            [style.--hint-color]="h.color"
+                            (click)="toggleHinweis(h.key)">
+                      <span class="hint-card__dot"></span>
+                      <span class="hint-card__label">{{ h.label }}</span>
+                      @if (editHinweise().includes(h.key)) {
+                        <mat-icon class="hint-card__check">check</mat-icon>
+                      }
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+
+            @if (availableGasttypen().length === 0 && availableHinweise().length === 0) {
+              <div class="empty-hints">
+                <mat-icon>label_off</mat-icon>
+                <p>{{ 'kunden.no_tags' | translate }}</p>
+                <span>{{ 'kunden.no_tags_hint' | translate }}</span>
+              </div>
+            }
+
+            <!-- Allergien & Unverträglichkeiten -->
+            <div class="hints-section">
+              <h4 class="hints-section__title hints-section__title--allergen">
+                <mat-icon>warning_amber</mat-icon>
+                {{ 'kunden.allergies' | translate }}
+              </h4>
+              @if (availableAllergene().length > 0) {
+                <p class="hints-section__sub">{{ 'kunden.allergies_hint' | translate }}</p>
+                <div class="hints-grid">
+                  @for (a of availableAllergene(); track a.key) {
+                    <button type="button"
+                            class="hint-card hint-card--allergen"
+                            [class.hint-card--active]="editAllergene().includes(a.key)"
+                            [class.hint-card--inactive]="!editAllergene().includes(a.key)"
+                            [style.--hint-color]="a.color"
+                            (click)="toggleAllergen(a.key)">
+                      <span class="hint-card__dot"></span>
+                      <span class="hint-card__label">{{ a.label }}</span>
+                      @if (editAllergene().includes(a.key)) {
+                        <mat-icon class="hint-card__check">check</mat-icon>
+                      }
+                    </button>
+                  }
+                </div>
+              } @else {
+                <p class="hints-section__sub">{{ 'kunden.no_allergens' | translate }}</p>
+              }
+              <!-- Zusatznotiz für nicht erfasste Allergene -->
+              <textarea
+                class="allergies-textarea"
+                rows="2"
+                [placeholder]="'kunden.other_hints' | translate"
+                [ngModel]="editAllergies()"
+                (ngModelChange)="editAllergies.set($event)">
+              </textarea>
+            </div>
+
+          </div>
+        }
+
+        <!-- ═══ TAB: Reservierungen ═══════════════════════════════════════════ -->
+        @if (activeTab() === 'reservierungen') {
+          <div class="tab-content tab-content--reservations">
+
+            <!-- Filter-Leiste -->
+            <div class="res-filter">
+              <span class="res-filter__label">{{ 'kunden.future_only' | translate }}</span>
+              <label class="switch">
+                <input type="checkbox"
+                       [checked]="reservationsUpcomingOnly()"
+                       (change)="toggleUpcomingOnly()" />
+                <span class="slider"></span>
+              </label>
+              <span class="res-filter__count">
+                {{ filteredReservations().length }} von {{ reservations().length }}
+              </span>
+            </div>
+
+            @if (reservationsLoading()) {
+              <div class="res-loading">
+                <span class="spinner"></span> {{ 'common.loading' | translate }}
+              </div>
+            }
+
+            @if (!reservationsLoading() && filteredReservations().length === 0) {
+              <div class="res-empty">
+                <mat-icon>event_busy</mat-icon>
+                <p>{{ 'kunden.no_reservations' | translate }}</p>
+              </div>
+            }
+
+            @if (!reservationsLoading() && filteredReservations().length > 0) {
+              <div class="res-list">
+                @for (r of filteredReservations(); track r.id) {
+                  <div class="res-card" [class.res-card--upcoming]="isUpcoming(r.starts_at)">
+
+                    <!-- Datum-Block (linke Spalte) -->
+                    <div class="res-card__date-block">
+                      <span class="res-date__weekday">{{ r.starts_at.slice(0,10) | date:'EEE' }}</span>
+                      <span class="res-date__day">{{ r.starts_at.slice(8,10) }}</span>
+                      <span class="res-date__month">{{ r.starts_at.slice(0,10) | date:'MMM yyyy' }}</span>
+                      <span class="res-date__time">{{ r.starts_at.slice(11,16) }} – {{ r.ends_at.slice(11,16) }}</span>
+                    </div>
+
+                    <!-- Inhalt (mittlere Spalte) -->
+                    <div class="res-card__mid">
+                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span class="res-venue">{{ r.venue_name }}</span>
+                        @if (isUpcoming(r.starts_at)) {
+                          <span class="res-upcoming-badge">● {{ 'kunden.upcoming' | translate }}</span>
+                        }
+                      </div>
+                      <div class="res-details">
+                        <span><mat-icon>group</mat-icon> {{ r.party_size }} {{ 'raum_detail.persons' | translate }}</span>
+                        @if (r.table_number) {
+                          <span><mat-icon>table_restaurant</mat-icon> {{ 'common.table' | translate }} {{ r.table_number }}</span>
+                        }
+                      </div>
+                      @if (r.guest_notes) {
+                        <span class="res-notes">„{{ r.guest_notes }}"</span>
+                      }
+                    </div>
+
+                    <!-- Status (rechte Spalte) -->
+                    <div class="res-card__right">
+                      <span class="res-status" [ngClass]="resStatusInfo(r.status).cls">
+                        {{ resStatusInfo(r.status).label }}
+                      </span>
+                    </div>
+
+                  </div>
+                }
+              </div>
+            }
+
+          </div>
+        }
+
+        <!-- ═══ TAB: Erinnerungen ═════════════════════════════════════════════ -->
+        @if (activeTab() === 'erinnerungen') {
+          <div class="tab-content tab-content--reminders">
+
+            <!-- Neue Erinnerung anlegen -->
+            <div class="reminder-form">
+              <div class="reminder-form__title">
+                <mat-icon>add_alert</mat-icon>
+                Neue Erinnerung
+              </div>
+              <textarea
+                class="reminder-form__note"
+                placeholder="Notiz – z. B. »Tisch am Fenster reservieren«"
+                rows="3"
+                [value]="newReminderNote()"
+                (input)="newReminderNote.set($any($event.target).value)">
+              </textarea>
+              <div class="reminder-form__row">
+                <div class="reminder-form__date-wrap">
+                  <mat-icon>event</mat-icon>
+                  <input
+                    class="reminder-form__date"
+                    type="date"
+                    [value]="newReminderDate()"
+                    (change)="newReminderDate.set($any($event.target).value)"
+                    [min]="todayIso" />
+                </div>
+                <button
+                  class="reminder-form__save"
+                  [disabled]="!newReminderNote().trim() || !newReminderDate()"
+                  (click)="addReminder()">
+                  <mat-icon>check</mat-icon>
+                  Speichern
+                </button>
+              </div>
+            </div>
+
+            <!-- Liste bestehender Erinnerungen -->
+            @if (guestReminders().length === 0) {
+              <div class="reminder-empty">
+                <mat-icon>notifications_none</mat-icon>
+                <p>Noch keine Erinnerungen für diesen Gast.</p>
+              </div>
+            }
+
+            @if (guestReminders().length > 0) {
+              <div class="reminder-list">
+                @for (r of guestReminders(); track r.id) {
+                  <div class="reminder-item" [class.reminder-item--due]="reminderIsDue(r.dueDate)" [class.reminder-item--dismissed]="r.dismissed">
+                    <div class="reminder-item__left">
+                      <mat-icon class="reminder-item__icon">{{ r.dismissed ? 'notifications_off' : (reminderIsDue(r.dueDate) ? 'notification_important' : 'notifications') }}</mat-icon>
+                    </div>
+                    <div class="reminder-item__body">
+                      <p class="reminder-item__note">{{ r.note }}</p>
+                      <span class="reminder-item__date">
+                        <mat-icon>event</mat-icon>
+                        {{ formatReminderDate(r.dueDate) }}
+                        @if (reminderIsDue(r.dueDate) && !r.dismissed) {
+                          <span class="reminder-item__due-badge">Fällig</span>
+                        }
+                      </span>
+                    </div>
+                    <button class="reminder-item__del" (click)="deleteReminder(r.id)" title="Löschen">
+                      <mat-icon>delete_outline</mat-icon>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+
+          </div>
+        }
+
+        <!-- ═══ TAB: E-Mail senden ═══════════════════════════════════════════ -->
+        @if (activeTab() === 'email') {
+          <div class="tab-content tab-content--mail">
+
+            <!-- Kein E-Mail-Konto -->
+            @if (!editTarget()?.email) {
+              <div class="mail-no-email">
+                <mat-icon>mail_off</mat-icon>
+                <p>Für diesen Gast ist keine E-Mail-Adresse hinterlegt.</p>
+              </div>
+            }
+
+            @if (editTarget()?.email) {
+
+              <!-- Empfänger-Info -->
+              <div class="mail-recipient">
+                <mat-icon>alternate_email</mat-icon>
+                <span>Wird gesendet an: <strong>{{ editTarget()?.email }}</strong></span>
+              </div>
+
+              <!-- Erfolgs-Banner -->
+              @if (mailSentOk()) {
+                <div class="mail-success">
+                  <mat-icon>check_circle</mat-icon>
+                  E-Mail wurde erfolgreich versendet!
+                </div>
+              }
+
+              <!-- Fehler-Banner -->
+              @if (mailError()) {
+                <div class="mail-error-banner">
+                  <mat-icon>error_outline</mat-icon>
+                  {{ mailError() }}
+                </div>
+              }
+
+              <!-- Schritt 1: Vorlage wählen -->
+              <div class="mail-section-label">
+                <span class="mail-step">1</span>
+                E-Mail-Vorlage auswählen
+              </div>
+              <div class="mail-template-grid">
+                @for (tpl of mailTemplates; track tpl.key) {
+                  <button
+                    class="mail-tpl-card"
+                    [class.mail-tpl-card--active]="selectedMailTemplate() === tpl.key"
+                    [class]="'mail-tpl-card mail-tpl-card--' + tpl.color + (selectedMailTemplate() === tpl.key ? ' mail-tpl-card--active' : '')"
+                    (click)="selectedMailTemplate.set(tpl.key)">
+                    <div class="mail-tpl-card__icon">
+                      <mat-icon>{{ tpl.icon }}</mat-icon>
+                    </div>
+                    <div class="mail-tpl-card__body">
+                      <span class="mail-tpl-card__label">{{ tpl.label }}</span>
+                      <span class="mail-tpl-card__desc">{{ tpl.description }}</span>
+                    </div>
+                    @if (selectedMailTemplate() === tpl.key) {
+                      <mat-icon class="mail-tpl-card__check">check_circle</mat-icon>
+                    }
+                  </button>
+                }
+              </div>
+
+              <!-- Schritt 2: Reservierung wählen (optional) -->
+              @if (reservations().length > 0) {
+                <div class="mail-section-label">
+                  <span class="mail-step">2</span>
+                  Reservierung auswählen <span class="mail-step-opt">(optional — Standard: letzte)</span>
+                </div>
+                <select
+                  class="mail-res-select"
+                  [value]="selectedReservationId()"
+                  (change)="selectedReservationId.set($any($event.target).value)">
+                  <option value="">Letzte Reservierung verwenden</option>
+                  @for (r of reservations(); track r.id) {
+                    <option [value]="r.id">
+                      {{ r.starts_at.slice(0,10) | date:'dd.MM.yyyy' }} · {{ r.starts_at.slice(11,16) }} Uhr · {{ r.party_size }} Pers. · {{ resStatusInfo(r.status).label }}
+                    </option>
+                  }
+                </select>
+              }
+
+              <!-- Senden-Button -->
+              <div class="mail-send-row">
+                <button
+                  class="mail-send-btn"
+                  [disabled]="!selectedMailTemplate() || mailSending()"
+                  (click)="sendMail()">
+                  @if (mailSending()) {
+                    <mat-icon class="spin">sync</mat-icon>
+                    Wird gesendet…
+                  } @else {
+                    <mat-icon>send</mat-icon>
+                    Jetzt senden
+                  }
+                </button>
+              </div>
+
+            }
+          </div>
+        }
+
+      </div>
+
+      <!-- ── Footer ─────────────────────────────────────────────────────────── -->
+      @if (activeTab() !== 'reservierungen' && activeTab() !== 'erinnerungen' && activeTab() !== 'email') {
+        @if (editError()) {
+          <div class="modal-error">
+            <mat-icon>error_outline</mat-icon>
+            {{ editError() }}
+          </div>
+        }
+        <div class="modal-actions">
+          <button class="btn-secondary" (click)="closeEdit()">{{ 'common.close' | translate }}</button>
+          <button class="btn-primary"
+                  [disabled]="!editName().trim() || editSaving()"
+                  (click)="saveEdit()">
+            <mat-icon>{{ editSaving() ? 'hourglass_empty' : 'save' }}</mat-icon>
+            {{ 'common.save' | translate }}
+          </button>
+        </div>
+      }
+
+      </div><!-- /profile-main -->
+    </div><!-- /profile-modal -->
+  </div><!-- /modal-backdrop -->
+}

@@ -1,1 +1,299 @@
-<p>statistiken works!</p>
+<div class="stats-page">
+
+  <!-- ─── Header ──────────────────────────────────────────────────────────── -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">{{ 'statistiken.title' | translate }}</h1>
+      <p class="page-subtitle">{{ 'statistiken.subtitle' | translate }}</p>
+    </div>
+  </div>
+
+  <!-- ─── KPI Cards ─────────────────────────────────────────────────────────── -->
+  <div class="stats-section">
+    <h2 class="section-label">{{ 'statistiken.key_figures' | translate }}</h2>
+    <div class="stats-grid">
+
+      <div class="stat-card stat-card--green">
+        <div class="stat-card__icon"><mat-icon>people</mat-icon></div>
+        <div class="stat-card__content">
+          <span class="stat-card__label">{{ 'statistiken.total_guests' | translate }}</span>
+          <span class="stat-card__value">{{ totals().guests | number }}</span>
+        </div>
+      </div>
+
+      <div class="stat-card stat-card--warn">
+        <div class="stat-card__icon"><mat-icon>event_available</mat-icon></div>
+        <div class="stat-card__content">
+          <span class="stat-card__label">{{ 'statistiken.reservations' | translate }}</span>
+          <span class="stat-card__value">{{ totals().reservations | number }}</span>
+        </div>
+      </div>
+
+      <div class="stat-card stat-card--danger">
+        <div class="stat-card__icon"><mat-icon>person_off</mat-icon></div>
+        <div class="stat-card__content">
+          <span class="stat-card__label">{{ 'statistiken.no_shows' | translate }}</span>
+          <span class="stat-card__value">{{ totals().noShows | number }}</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-card__icon"><mat-icon>percent</mat-icon></div>
+        <div class="stat-card__content">
+          <span class="stat-card__label">{{ 'statistiken.utilization_30' | translate }}</span>
+          <span class="stat-card__value">{{ totals().auslastung | number:'1.0-1' }} %</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── Reservierungen pro Monat (full width) ───────────────────────────── -->
+  <div class="chart-card">
+    <div class="chart-card__header">
+      <h3 class="chart-card__title">{{ 'statistiken.reservations_per_month' | translate }}</h3>
+      @if (monthlyBadge) {
+        <span class="chart-card__badge">{{ monthlyBadge }}</span>
+      }
+    </div>
+    <div class="chart-card__body">
+      <canvas id="lineChart"></canvas>
+    </div>
+  </div>
+
+  <!-- ─── Anlässe & Quellen ────────────────────────────────────────────────── -->
+  <div class="stats-section">
+    <h2 class="section-label">{{ 'statistiken.booking_overview' | translate }}</h2>
+    <div class="donut-pair">
+
+      <!-- Anlässe -->
+      <div class="donut-card">
+        <h3 class="donut-card__title">{{ 'statistiken.occasions' | translate }}</h3>
+        <div class="donut-card__visual">
+          <div class="donut-wrap">
+            <canvas id="anlassChart"></canvas>
+            <div class="donut-center">
+              <span class="donut-center__num">{{ anlassTotal }}</span>
+              <span class="donut-center__lbl">{{ 'statistiken.total' | translate }}</span>
+            </div>
+          </div>
+          <div class="donut-legend">
+            @for (item of anlassData; track item.label) {
+              <div class="donut-legend__row">
+                <span class="donut-legend__dot" [style.background]="item.color"></span>
+                <span class="donut-legend__name">{{ item.label }}</span>
+                <span class="donut-legend__val">{{ item.value }}</span>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- Quellen -->
+      <div class="donut-card">
+        <h3 class="donut-card__title">{{ 'statistiken.sources' | translate }}</h3>
+        <div class="donut-card__visual">
+          <div class="donut-wrap">
+            <canvas id="quellenChart"></canvas>
+            <div class="donut-center">
+              <span class="donut-center__num">{{ quellenTotal }}</span>
+              <span class="donut-center__lbl">{{ 'statistiken.total' | translate }}</span>
+            </div>
+          </div>
+          <div class="donut-legend">
+            @for (item of quellenData; track item.label) {
+              <div class="donut-legend__row">
+                <span class="donut-legend__dot" [style.background]="item.color"></span>
+                <span class="donut-legend__name">{{ item.label }}</span>
+                <span class="donut-legend__val">{{ item.value }}</span>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- Geräte-Verteilung -->
+      <div class="donut-card">
+        <h3 class="donut-card__title">{{ 'statistiken.devices' | translate }}</h3>
+        <div class="donut-card__visual">
+          <div class="donut-wrap">
+            <canvas id="doughnutChart"></canvas>
+            <div class="donut-center">
+              <span class="donut-center__num">100</span>
+              <span class="donut-center__lbl">{{ 'statistiken.total' | translate }}</span>
+            </div>
+          </div>
+          <div class="donut-legend">
+            @for (item of geraeteData; track item.label) {
+              <div class="donut-legend__row">
+                <span class="donut-legend__dot" [style.background]="item.color"></span>
+                <span class="donut-legend__name">{{ item.label }}</span>
+                <span class="donut-legend__val">{{ item.value }} %</span>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── Auslastung nach Zeit ─────────────────────────────────────────────── -->
+  <div class="stats-section">
+    <div class="chart-card">
+      <div class="chart-card__header">
+        <div>
+          <h3 class="chart-card__title">{{ 'statistiken.utilization_time' | translate }}</h3>
+          <p class="chart-card__hint">{{ 'statistiken.guests_per_slot' | translate }}</p>
+        </div>
+        <div class="filter-pill-group">
+          @for (opt of timeOptions; track opt.value) {
+            <button
+              class="filter-pill"
+              [class.filter-pill--active]="auslastungFilter === opt.value"
+              (click)="setAuslastungFilter(opt.value)">
+              {{ opt.label }}
+            </button>
+          }
+        </div>
+      </div>
+      <div class="chart-card__body chart-card__body--tall">
+        <canvas id="auslastungChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Gruppen-Heatmap ──────────────────────────────────────────────────── -->
+  <div class="stats-section">
+    <div class="chart-card">
+      <div class="chart-card__header">
+        <div>
+          <h3 class="chart-card__title">{{ 'statistiken.groups_per_interval' | translate }}
+            <span class="chart-card__badge chart-card__badge--inline">{{ 'statistiken.minutes_15' | translate }}</span>
+          </h3>
+          <p class="chart-card__hint">{{ 'statistiken.simultaneous_groups' | translate }}</p>
+        </div>
+        <div class="filter-pill-group">
+          @for (opt of timeOptions; track opt.value) {
+            <button
+              class="filter-pill"
+              [class.filter-pill--active]="gruppenFilter === opt.value"
+              (click)="gruppenFilter = opt.value">
+              {{ opt.label }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="heatmap-scroll">
+        <div class="heatmap">
+          <!-- Zeitachse -->
+          <div class="heatmap__time-row">
+            @for (lbl of gruppenLabels; track $index) {
+              <div class="heatmap__time-cell" [class.heatmap__time-cell--major]="!lbl.startsWith(':')">
+                {{ lbl }}
+              </div>
+            }
+          </div>
+          <!-- Daten-Zeilen -->
+          @for (row of gruppenRows; track $index) {
+            <div class="heatmap__row">
+              @for (val of row; track $index) {
+                <div
+                  class="heatmap__cell"
+                  [class.heatmap__cell--empty]="val === 0"
+                  [style.background]="heatBg(val)"
+                  [style.color]="heatFg(val)"
+                  [title]="val ? val + ' Gruppen' : ''">
+                  {{ val || '' }}
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Legende -->
+      <div class="heatmap-legend">
+        <span class="heatmap-legend__label">{{ 'statistiken.few' | translate }}</span>
+        <div class="heatmap-legend__scale">
+          @for (step of [0.18, 0.35, 0.52, 0.68, 0.85, 0.95]; track $index) {
+            <div class="heatmap-legend__swatch" [style.background]="'rgba(41,121,255,' + step + ')'"></div>
+          }
+        </div>
+        <span class="heatmap-legend__label">{{ 'statistiken.many' | translate }}</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─── Performance + Top Nutzer ─────────────────────────────────────────── -->
+  <div class="bottom-section">
+
+    <div class="metrics-card">
+      <h2 class="section-label">{{ 'statistiken.performance' | translate }}</h2>
+      <div class="metrics-list">
+        @for (m of metrics; track m.name) {
+          <div class="metric-row">
+            <div class="metric-row__top">
+              <span class="metric-row__name">{{ m.name }}</span>
+              <span class="metric-row__value">{{ m.value }} %</span>
+            </div>
+            <div class="metric-row__bar">
+              <div class="metric-row__fill" [style.width.%]="m.value"></div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="table-card">
+      <h2 class="section-label">{{ 'statistiken.top_guests' | translate }}</h2>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>{{ 'statistiken.name' | translate }}</th>
+            <th>{{ 'statistiken.visits' | translate }}</th>
+            <th>{{ 'statistiken.reliability' | translate }}</th>
+            <th>{{ 'statistiken.status' | translate }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (g of topGuests; track g.name) {
+            <tr>
+              <td>
+                <div class="user-cell">
+                  <div class="user-avatar">{{ g.name[0].toUpperCase() }}</div>
+                  <span>{{ g.name }}</span>
+                </div>
+              </td>
+              <td>{{ g.visits }}×</td>
+              <td>
+                <div class="reliability-bar">
+                  <div class="reliability-bar__fill"
+                       [style.width.%]="g.reliabilityScore"
+                       [class.reliability-bar__fill--warn]="g.reliabilityScore < 70"></div>
+                  <span class="reliability-bar__label">{{ g.reliabilityScore }} %</span>
+                </div>
+              </td>
+              <td>
+                @if (g.blocked) {
+                  <span class="status-badge status-badge--inactive">{{ 'statistiken.blocked' | translate }}</span>
+                } @else if (g.noShows > 0) {
+                  <span class="status-badge status-badge--warn">{{ g.noShows }} {{ g.noShows > 1 ? ('statistiken.no_shows_plural' | translate) : ('statistiken.no_show' | translate) }}</span>
+                } @else {
+                  <span class="status-badge status-badge--active">{{ 'statistiken.reliable' | translate }}</span>
+                }
+              </td>
+            </tr>
+          }
+          @if (topGuests.length === 0) {
+            <tr><td colspan="4" class="data-table__empty">{{ 'statistiken.no_guests' | translate }}</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+</div>

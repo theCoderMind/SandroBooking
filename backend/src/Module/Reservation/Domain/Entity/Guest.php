@@ -69,11 +69,51 @@ class Guest
     #[ORM\Column(options: ['default' => 0])]
     private int $noShowCount = 0;
 
+    /** Gesamtumsatz in Cent (denormalisiert, wird bei Reservierungsabschluss erhöht) */
+    #[ORM\Column(options: ['default' => 0])]
+    private int $totalRevenueCents = 0;
+
+    /** Geburtstag des Gastes (nur Datum, kein Uhrzeit) */
+    #[ORM\Column(type: 'date_immutable', nullable: true)]
+    private ?\DateTimeImmutable $birthday = null;
+
+    /** Jahrestag / Hochzeitstag */
+    #[ORM\Column(type: 'date_immutable', nullable: true)]
+    private ?\DateTimeImmutable $weddingDate = null;
+
+    /** Anzahl der durch den Gast stornierten Reservierungen (denormalisiert) */
+    #[ORM\Column(options: ['default' => 0])]
+    private int $cancellationCount = 0;
+
+    /** Datum des letzten abgeschlossenen oder No-Show-Besuchs (denormalisiert) */
+    #[ORM\Column(type: 'date_immutable', nullable: true)]
+    private ?\DateTimeImmutable $lastVisitAt = null;
+
+    /** Allergien & Unverträglichkeiten (freitext) */
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $allergies = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
+
+    /** Zugewiesene Gasttyp-Keys (z. B. ['vip', 'regular']) */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $gasttypen = null;
+
+    /** Zugewiesene Hinweis-Keys (z. B. ['allergy', 'birthday']) */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $hinweise = null;
+
+    /** Ausgewählte Allergen-Keys aus den Tenant-Einstellungen */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $allergene = null;
+
+    /** Interne Erinnerungen des Tenants für diesen Gast */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $reminders = null;
 
     /** @var Collection<int, Reservation> */
     #[ORM\OneToMany(mappedBy: 'guest', targetEntity: Reservation::class)]
@@ -168,6 +208,63 @@ class Guest
         $this->internalNotes = $notes;
     }
 
+    public function getGasttypen(): array
+    {
+        return $this->gasttypen ?? [];
+    }
+
+    public function setGasttypen(array $keys): void
+    {
+        $this->gasttypen = array_values($keys);
+    }
+
+    public function getHinweise(): array
+    {
+        return $this->hinweise ?? [];
+    }
+
+    public function setHinweise(array $keys): void
+    {
+        $this->hinweise = array_values($keys);
+    }
+
+    public function getAllergene(): array
+    {
+        return $this->allergene ?? [];
+    }
+
+    public function setAllergene(array $keys): void
+    {
+        $this->allergene = array_values($keys);
+    }
+
+    public function getReminders(): array
+    {
+        return $this->reminders ?? [];
+    }
+
+    public function addReminder(array $reminder): void
+    {
+        $list = $this->reminders ?? [];
+        $list[] = $reminder;
+        $this->reminders = $list;
+    }
+
+    public function removeReminder(string $id): void
+    {
+        $this->reminders = array_values(
+            array_filter($this->reminders ?? [], fn (array $r) => $r['id'] !== $id)
+        );
+    }
+
+    public function dismissReminder(string $id): void
+    {
+        $this->reminders = array_map(
+            fn (array $r) => $r['id'] === $id ? array_merge($r, ['dismissed' => true]) : $r,
+            $this->reminders ?? []
+        );
+    }
+
     public function block(string $reason): void
     {
         $this->blocked = true;
@@ -188,5 +285,77 @@ class Guest
     public function incrementNoShows(): void
     {
         $this->noShowCount++;
+    }
+
+    public function getTotalRevenueCents(): int
+    {
+        return $this->totalRevenueCents;
+    }
+
+    public function addRevenueCents(int $cents): void
+    {
+        $this->totalRevenueCents += $cents;
+    }
+
+    public function getBirthday(): ?\DateTimeImmutable
+    {
+        return $this->birthday;
+    }
+
+    public function setBirthday(?\DateTimeImmutable $birthday): void
+    {
+        $this->birthday = $birthday;
+    }
+
+    public function getWeddingDate(): ?\DateTimeImmutable
+    {
+        return $this->weddingDate;
+    }
+
+    public function setWeddingDate(?\DateTimeImmutable $weddingDate): void
+    {
+        $this->weddingDate = $weddingDate;
+    }
+
+    public function getCancellationCount(): int
+    {
+        return $this->cancellationCount;
+    }
+
+    public function incrementCancellations(): void
+    {
+        $this->cancellationCount++;
+    }
+
+    public function getLastVisitAt(): ?\DateTimeImmutable
+    {
+        return $this->lastVisitAt;
+    }
+
+    public function updateLastVisitAt(\DateTimeImmutable $date): void
+    {
+        if ($this->lastVisitAt === null || $date > $this->lastVisitAt) {
+            $this->lastVisitAt = $date;
+        }
+    }
+
+    public function getAllergies(): ?string
+    {
+        return $this->allergies;
+    }
+
+    public function setAllergies(?string $allergies): void
+    {
+        $this->allergies = $allergies !== '' ? $allergies : null;
+    }
+
+    /** Stornierungsrate in Prozent (0-100) */
+    public function getCancellationRate(): int
+    {
+        if ($this->totalReservations === 0) {
+            return 0;
+        }
+
+        return (int) round($this->cancellationCount / $this->totalReservations * 100);
     }
 }

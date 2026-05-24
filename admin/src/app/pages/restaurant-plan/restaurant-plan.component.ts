@@ -3,8 +3,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { TranslateModule } from '@ngx-translate/core';
 import { RoomsService } from '../../services/rooms.service';
-import { PlacedTable, PlacedWall, SavedRoom, TableType } from '../../services/room.types';
+import { PlacedTable, PlacedWall, PlacedDecor, SavedRoom, TableType, DecorType } from '../../services/room.types';
 
 interface MergeDialogData {
   movingId: number;
@@ -15,15 +16,16 @@ interface MergeDialogData {
 
 type ActiveDrag =
   | { mode: 'move-table'; id: number; offsetX: number; offsetY: number }
-  | { mode: 'rotate';     id: number; kind: 'table' | 'wall'; cx: number; cy: number; startAngle: number; startRotation: number }
-  | { mode: 'resize';     id: number; cx: number; cy: number; startScale: number; startDist: number }
+  | { mode: 'rotate';     id: number; kind: 'table' | 'wall' | 'decor'; cx: number; cy: number; startAngle: number; startRotation: number }
+  | { mode: 'resize';     id: number; kind: 'table' | 'decor'; cx: number; cy: number; startScale: number; startDist: number }
   | { mode: 'move-wall';  id: number; offsetX: number; offsetY: number }
-  | { mode: 'wall-len';   id: number; fixedX: number; fixedY: number; axisX: number; axisY: number };
+  | { mode: 'wall-len';   id: number; fixedX: number; fixedY: number; axisX: number; axisY: number }
+  | { mode: 'move-decor'; id: number; offsetX: number; offsetY: number };
 
 @Component({
   selector: 'app-restaurant-plan',
   standalone: true,
-  imports: [MatIconModule, RouterLink, DatePipe],
+  imports: [MatIconModule, RouterLink, DatePipe, TranslateModule],
   templateUrl: './restaurant-plan.component.html',
   styleUrl: './restaurant-plan.component.scss'
 })
@@ -33,8 +35,10 @@ export class RestaurantPlanComponent implements OnInit {
   isEditing       = signal(false);
   placedTables    = signal<PlacedTable[]>([]);
   placedWalls     = signal<PlacedWall[]>([]);
+  placedDecors    = signal<PlacedDecor[]>([]);
   selectedTableId = signal<number | null>(null);
   selectedWallId  = signal<number | null>(null);
+  selectedDecorId = signal<number | null>(null);
   editingSeatsId  = signal<number | null>(null);
 
   // Edit-Modus: id des geladenen Raums, sonst null = neuer Raum
@@ -54,7 +58,28 @@ export class RestaurantPlanComponent implements OnInit {
 
   private nextId     = 1;
   private activeDrag: ActiveDrag | null = null;
-  private dragFromPalette: TableType | 'wall' | null = null;
+  private dragFromPalette: TableType | 'wall' | DecorType | null = null;
+
+  /** Liste aller verfügbaren Dekor-Typen (Palette-Reihenfolge). */
+  readonly decorPaletteSquare: DecorType[]  = ['plant', 'pillar', 'door', 'wc', 'stairs', 'entrance', 'coatrack', 'cashier'];
+  readonly decorPaletteWide:   DecorType[]  = ['bar', 'stage', 'sofa'];
+  readonly decorPaletteWindow: DecorType[]  = ['window'];
+
+  /** Lesbare Beschriftung pro Dekor-Typ. */
+  readonly decorLabels: Record<DecorType, string> = {
+    plant:    'restaurant_plan.plant',
+    pillar:   'restaurant_plan.pillar',
+    door:     'restaurant_plan.door',
+    window:   'restaurant_plan.window',
+    stairs:   'restaurant_plan.stairs',
+    wc:       'restaurant_plan.wc',
+    entrance: 'restaurant_plan.entrance',
+    bar:      'restaurant_plan.bar',
+    stage:    'restaurant_plan.stage',
+    coatrack: 'restaurant_plan.coatrack',
+    sofa:     'restaurant_plan.sofa',
+    cashier:  'restaurant_plan.cashier',
+  };
 
   private readonly roomsService = inject(RoomsService);
   private readonly router       = inject(Router);
@@ -93,9 +118,11 @@ export class RestaurantPlanComponent implements OnInit {
     }
     // deep-copy, damit Änderungen erst beim Speichern greifen
     const tables = JSON.parse(JSON.stringify(room.tables)) as PlacedTable[];
-    const walls  = JSON.parse(JSON.stringify(room.walls)) as PlacedWall[];
+    const walls  = JSON.parse(JSON.stringify(room.walls))  as PlacedWall[];
+    const decors = JSON.parse(JSON.stringify(room.decors ?? [])) as PlacedDecor[];
     this.placedTables.set(tables);
     this.placedWalls.set(walls);
+    this.placedDecors.set(decors);
     this.editingRoomId.set(room.id);
     this.currentRoomName.set(room.name);
     this.isEditing.set(true);
@@ -105,6 +132,7 @@ export class RestaurantPlanComponent implements OnInit {
       0,
       ...tables.map(t => t.id),
       ...walls.map(w => w.id),
+      ...decors.map(d => d.id),
     );
     this.nextId = maxId + 1;
   }
@@ -128,8 +156,10 @@ export class RestaurantPlanComponent implements OnInit {
   private resetEditor() {
     this.placedTables.set([]);
     this.placedWalls.set([]);
+    this.placedDecors.set([]);
     this.selectedTableId.set(null);
     this.selectedWallId.set(null);
+    this.selectedDecorId.set(null);
     this.editingSeatsId.set(null);
     this.editingRoomId.set(null);
     this.currentRoomName.set('');
@@ -138,11 +168,18 @@ export class RestaurantPlanComponent implements OnInit {
     this.nextId = 1;
   }
 
+  /** True, wenn überhaupt etwas im Plan liegt (Tisch, Wand oder Dekor). */
+  private hasAnyContent(): boolean {
+    return this.placedTables().length > 0
+        || this.placedWalls().length > 0
+        || this.placedDecors().length > 0;
+  }
+
   // ── Speichern ────────────────────────────────────────────────────────────
 
   openSaveDialog() {
-    if (this.placedTables().length === 0 && this.placedWalls().length === 0) {
-      this.saveError.set('Füge zuerst mindestens einen Tisch oder Raumtrenner hinzu.');
+    if (!this.hasAnyContent()) {
+      this.saveError.set('Füge zuerst mindestens einen Tisch, Raumtrenner oder ein Dekor-Element hinzu.');
       this.saveDialogOpen.set(true);
       return;
     }
@@ -168,8 +205,8 @@ export class RestaurantPlanComponent implements OnInit {
       this.saveError.set('Bitte gib einen Namen für den Raum ein.');
       return;
     }
-    if (this.placedTables().length === 0 && this.placedWalls().length === 0) {
-      this.saveError.set('Füge zuerst mindestens einen Tisch oder Raumtrenner hinzu.');
+    if (!this.hasAnyContent()) {
+      this.saveError.set('Füge zuerst mindestens einen Tisch, Raumtrenner oder ein Dekor-Element hinzu.');
       return;
     }
 
@@ -181,6 +218,7 @@ export class RestaurantPlanComponent implements OnInit {
         name,
         tables: this.placedTables(),
         walls:  this.placedWalls(),
+        decors: this.placedDecors(),
       }).subscribe({
         next: () => {
           this.saving.set(false);
@@ -195,7 +233,7 @@ export class RestaurantPlanComponent implements OnInit {
         },
       });
     } else {
-      this.roomsService.addRoom(name, this.placedTables(), this.placedWalls()).subscribe({
+      this.roomsService.addRoom(name, this.placedTables(), this.placedWalls(), this.placedDecors()).subscribe({
         next: (room) => {
           this.saving.set(false);
           this.saveDialogOpen.set(false);
@@ -220,7 +258,7 @@ export class RestaurantPlanComponent implements OnInit {
   // ── Verwerfen-Dialog ───────────────────────────────────────────────────
   askDiscardChanges() {
     // Wenn unten im Editor, aber nichts drauf, direkt schließen
-    if (this.placedTables().length === 0 && this.placedWalls().length === 0) {
+    if (!this.hasAnyContent()) {
       this.closeEditor();
       return;
     }
@@ -238,12 +276,31 @@ export class RestaurantPlanComponent implements OnInit {
 
   // ── Selektion ─────────────────────────────────────────────────────────────
 
-  onCanvasMouseDown(event: MouseEvent) {
-    if ((event.target as HTMLElement) === this.canvasRef.nativeElement) {
+  onCanvasMouseDown(event: PointerEvent) {
+    if ((event.target as HTMLElement) !== this.canvasRef.nativeElement) return;
+
+    const selectedTable = this.selectedTableId();
+    if (selectedTable !== null) {
+      // Ausgewählten Tisch zur angeklickten Stelle verschieben (zentriert)
+      const rect = this.canvasRef.nativeElement.getBoundingClientRect();
+      const cx = event.clientX - rect.left;
+      const cy = event.clientY - rect.top;
+      this.placedTables.update(ts => ts.map(t => {
+        if (t.id !== selectedTable) return t;
+        const { w, h } = this.getTableSize(t.type);
+        return { ...t,
+          x: Math.max(0, cx - (w * t.scale) / 2),
+          y: Math.max(0, cy - (h * t.scale) / 2) };
+      }));
+      this.checkMerge(selectedTable);
       this.selectedTableId.set(null);
-      this.selectedWallId.set(null);
-      this.editingSeatsId.set(null);
+      return;
     }
+
+    // Kein Tisch ausgewählt → alles deselektieren
+    this.selectedWallId.set(null);
+    this.selectedDecorId.set(null);
+    this.editingSeatsId.set(null);
   }
 
   // ── Tisch-Dimensionen ─────────────────────────────────────────────────────
@@ -257,9 +314,34 @@ export class RestaurantPlanComponent implements OnInit {
     return { x: t.x + (w * t.scale) / 2, y: t.y + (h * t.scale) / 2 };
   }
 
+  // ── Dekor-Dimensionen ─────────────────────────────────────────────────────
+
+  /**
+   * Native ViewBox-Größe je Dekor-Typ (vor Skalierung).
+   * Wide-Elemente (Bar, Bühne, Sofa): 140x70.
+   * Fenster (Wand-ähnlich):           140x32.
+   * Alles andere quadratisch:          70x70.
+   */
+  getDecorSize(type: DecorType): { w: number; h: number } {
+    if (type === 'bar' || type === 'stage' || type === 'sofa') return { w: 140, h: 70 };
+    if (type === 'window') return { w: 140, h: 32 };
+    return { w: 70, h: 70 };
+  }
+
+  getDecorCenter(d: PlacedDecor): { x: number; y: number } {
+    const { w, h } = this.getDecorSize(d.type);
+    return { x: d.x + (w * d.scale) / 2, y: d.y + (h * d.scale) / 2 };
+  }
+
+  /** True, wenn der Typ aus der Palette ein Dekor-Typ ist. */
+  private isDecorType(t: unknown): t is DecorType {
+    return typeof t === 'string'
+      && ['plant','pillar','door','window','stairs','wc','entrance','bar','stage','coatrack','sofa','cashier'].includes(t);
+  }
+
   // ── Palette → Canvas ──────────────────────────────────────────────────────
 
-  onPaletteDragStart(event: DragEvent, type: TableType | 'wall') {
+  onPaletteDragStart(event: DragEvent, type: TableType | 'wall' | DecorType) {
     this.dragFromPalette = type;
     event.dataTransfer!.effectAllowed = 'copy';
   }
@@ -278,6 +360,14 @@ export class RestaurantPlanComponent implements OnInit {
 
     if (this.dragFromPalette === 'wall') {
       this.placedWalls.update(ws => [...ws, { id: this.nextId++, x: cx, y: cy, length: 120, rotation: 0 }]);
+    } else if (this.isDecorType(this.dragFromPalette)) {
+      const type = this.dragFromPalette;
+      const { w, h } = this.getDecorSize(type);
+      this.placedDecors.update(ds => [...ds, {
+        id: this.nextId++, type,
+        x: Math.max(0, cx - w / 2), y: Math.max(0, cy - h / 2),
+        rotation: 0, scale: 1,
+      }]);
     } else {
       const type = this.dragFromPalette as TableType;
       const { w, h } = this.getTableSize(type);
@@ -293,10 +383,11 @@ export class RestaurantPlanComponent implements OnInit {
 
   // ── Tisch: Verschieben ────────────────────────────────────────────────────
 
-  onTableMouseDown(event: MouseEvent, id: number) {
+  onTableMouseDown(event: PointerEvent, id: number) {
     event.preventDefault(); event.stopPropagation();
     this.selectedTableId.set(id);
     this.selectedWallId.set(null);
+    this.selectedDecorId.set(null);
     this.editingSeatsId.set(null);
     const rect  = this.canvasRef.nativeElement.getBoundingClientRect();
     const table = this.placedTables().find(t => t.id === id)!;
@@ -307,7 +398,7 @@ export class RestaurantPlanComponent implements OnInit {
 
   // ── Tisch: Drehen & Skalieren ─────────────────────────────────────────────
 
-  onRotateHandleMouseDown(event: MouseEvent, id: number, kind: 'table' | 'wall') {
+  onRotateHandleMouseDown(event: PointerEvent, id: number, kind: 'table' | 'wall' | 'decor') {
     event.preventDefault(); event.stopPropagation();
     const rect = this.canvasRef.nativeElement.getBoundingClientRect();
     let cx: number, cy: number, startRotation: number;
@@ -317,10 +408,15 @@ export class RestaurantPlanComponent implements OnInit {
       const c  = this.getTableCenter(t);
       cx = c.x + rect.left; cy = c.y + rect.top;
       startRotation = t.rotation;
-    } else {
+    } else if (kind === 'wall') {
       const w  = this.placedWalls().find(w => w.id === id)!;
       cx = w.x + rect.left; cy = w.y + rect.top;
       startRotation = w.rotation;
+    } else {
+      const d  = this.placedDecors().find(d => d.id === id)!;
+      const c  = this.getDecorCenter(d);
+      cx = c.x + rect.left; cy = c.y + rect.top;
+      startRotation = d.rotation;
     }
 
     this.activeDrag = { mode: 'rotate', id, kind, cx, cy,
@@ -328,20 +424,31 @@ export class RestaurantPlanComponent implements OnInit {
       startRotation };
   }
 
-  onResizeHandleMouseDown(event: MouseEvent, id: number) {
+  onResizeHandleMouseDown(event: PointerEvent, id: number, kind: 'table' | 'decor' = 'table') {
     event.preventDefault(); event.stopPropagation();
-    const rect   = this.canvasRef.nativeElement.getBoundingClientRect();
-    const table  = this.placedTables().find(t => t.id === id)!;
-    const c      = this.getTableCenter(table);
-    const cx     = c.x + rect.left, cy = c.y + rect.top;
-    this.activeDrag = { mode: 'resize', id, cx, cy,
-      startScale: table.scale,
+    const rect = this.canvasRef.nativeElement.getBoundingClientRect();
+    let cx: number, cy: number, startScale: number;
+
+    if (kind === 'table') {
+      const t = this.placedTables().find(t => t.id === id)!;
+      const c = this.getTableCenter(t);
+      cx = c.x + rect.left; cy = c.y + rect.top;
+      startScale = t.scale;
+    } else {
+      const d = this.placedDecors().find(d => d.id === id)!;
+      const c = this.getDecorCenter(d);
+      cx = c.x + rect.left; cy = c.y + rect.top;
+      startScale = d.scale;
+    }
+
+    this.activeDrag = { mode: 'resize', id, kind, cx, cy,
+      startScale,
       startDist:  Math.hypot(event.clientX - cx, event.clientY - cy) };
   }
 
   // ── Tisch: Entfernen & Sitzplätze ─────────────────────────────────────────
 
-  removeTable(event: MouseEvent, id: number) {
+  removeTable(event: Event, id: number) {
     event.stopPropagation();
     // Ggf. gemergten Partner lösen
     const table = this.placedTables().find(t => t.id === id);
@@ -354,7 +461,7 @@ export class RestaurantPlanComponent implements OnInit {
     this.selectedTableId.set(null);
   }
 
-  openSeatsEdit(event: MouseEvent, id: number) {
+  openSeatsEdit(event: Event, id: number) {
     event.stopPropagation();
     this.editingSeatsId.set(id);
     setTimeout(() => {
@@ -468,7 +575,13 @@ export class RestaurantPlanComponent implements OnInit {
 
   // ── Auseinander stellen ───────────────────────────────────────────────────
 
-  onSplitClick(event: MouseEvent, tableId: number) {
+  onSplitClick(event: Event, tableId: number) {
+    event.stopPropagation();
+    this.splitDialog.set(tableId);
+  }
+
+  /** Split-Handle direkt am ausgewählten zusammengestellten Tisch */
+  onSplitHandleClick(event: Event, tableId: number) {
     event.stopPropagation();
     this.splitDialog.set(tableId);
   }
@@ -531,10 +644,11 @@ export class RestaurantPlanComponent implements OnInit {
 
   // ── Wand ──────────────────────────────────────────────────────────────────
 
-  onWallMouseDown(event: MouseEvent, id: number) {
+  onWallMouseDown(event: PointerEvent, id: number) {
     event.preventDefault(); event.stopPropagation();
     this.selectedWallId.set(id);
     this.selectedTableId.set(null);
+    this.selectedDecorId.set(null);
     const rect = this.canvasRef.nativeElement.getBoundingClientRect();
     const wall = this.placedWalls().find(w => w.id === id)!;
     this.activeDrag = { mode: 'move-wall', id,
@@ -542,7 +656,7 @@ export class RestaurantPlanComponent implements OnInit {
       offsetY: event.clientY - rect.top  - wall.y };
   }
 
-  onWallEndMouseDown(event: MouseEvent, id: number, end: 'left' | 'right') {
+  onWallEndMouseDown(event: PointerEvent, id: number, end: 'left' | 'right') {
     event.preventDefault(); event.stopPropagation();
     const rect  = this.canvasRef.nativeElement.getBoundingClientRect();
     const wall  = this.placedWalls().find(w => w.id === id)!;
@@ -554,20 +668,41 @@ export class RestaurantPlanComponent implements OnInit {
     this.activeDrag = { mode: 'wall-len', id, fixedX, fixedY, axisX, axisY };
   }
 
-  removeWall(event: MouseEvent, id: number) {
+  removeWall(event: Event, id: number) {
     event.stopPropagation();
     this.placedWalls.update(ws => ws.filter(w => w.id !== id));
     this.selectedWallId.set(null);
   }
 
-  onRotateWallMouseDown(event: MouseEvent, id: number) {
+  onRotateWallMouseDown(event: PointerEvent, id: number) {
     this.onRotateHandleMouseDown(event, id, 'wall');
+  }
+
+  // ── Dekor-Element ─────────────────────────────────────────────────────────
+
+  onDecorMouseDown(event: PointerEvent, id: number) {
+    event.preventDefault(); event.stopPropagation();
+    this.selectedDecorId.set(id);
+    this.selectedTableId.set(null);
+    this.selectedWallId.set(null);
+    this.editingSeatsId.set(null);
+    const rect  = this.canvasRef.nativeElement.getBoundingClientRect();
+    const decor = this.placedDecors().find(d => d.id === id)!;
+    this.activeDrag = { mode: 'move-decor', id,
+      offsetX: event.clientX - rect.left - decor.x,
+      offsetY: event.clientY - rect.top  - decor.y };
+  }
+
+  removeDecor(event: Event, id: number) {
+    event.stopPropagation();
+    this.placedDecors.update(ds => ds.filter(d => d.id !== id));
+    this.selectedDecorId.set(null);
   }
 
   // ── Globale Maus-Events ───────────────────────────────────────────────────
 
-  @HostListener('document:mousemove', ['$event'])
-  onMouseMove(event: MouseEvent) {
+  @HostListener('document:pointermove', ['$event'])
+  onMouseMove(event: PointerEvent) {
     if (!this.activeDrag) return;
     const drag = this.activeDrag;
     const rect = this.canvasRef.nativeElement.getBoundingClientRect();
@@ -585,20 +720,32 @@ export class RestaurantPlanComponent implements OnInit {
         const delta = (angle - drag.startAngle) * (180 / Math.PI);
         if (drag.kind === 'table')
           this.placedTables.update(ts => ts.map(t => t.id === drag.id ? { ...t, rotation: drag.startRotation + delta } : t));
-        else
+        else if (drag.kind === 'wall')
           this.placedWalls.update(ws => ws.map(w => w.id === drag.id ? { ...w, rotation: drag.startRotation + delta } : w));
+        else
+          this.placedDecors.update(ds => ds.map(d => d.id === drag.id ? { ...d, rotation: drag.startRotation + delta } : d));
         break;
       }
 
       case 'resize': {
         const dist     = Math.hypot(event.clientX - drag.cx, event.clientY - drag.cy);
         const newScale = Math.min(3, Math.max(0.4, drag.startScale * (dist / drag.startDist)));
-        const table    = this.placedTables().find(t => t.id === drag.id)!;
-        const { w, h } = this.getTableSize(table.type);
-        this.placedTables.update(ts => ts.map(t => t.id === drag.id
-          ? { ...t, scale: newScale,
-              x: drag.cx - rect.left - (w * newScale) / 2,
-              y: drag.cy - rect.top  - (h * newScale) / 2 } : t));
+
+        if (drag.kind === 'table') {
+          const table    = this.placedTables().find(t => t.id === drag.id)!;
+          const { w, h } = this.getTableSize(table.type);
+          this.placedTables.update(ts => ts.map(t => t.id === drag.id
+            ? { ...t, scale: newScale,
+                x: drag.cx - rect.left - (w * newScale) / 2,
+                y: drag.cy - rect.top  - (h * newScale) / 2 } : t));
+        } else {
+          const decor    = this.placedDecors().find(d => d.id === drag.id)!;
+          const { w, h } = this.getDecorSize(decor.type);
+          this.placedDecors.update(ds => ds.map(d => d.id === drag.id
+            ? { ...d, scale: newScale,
+                x: drag.cx - rect.left - (w * newScale) / 2,
+                y: drag.cy - rect.top  - (h * newScale) / 2 } : d));
+        }
         break;
       }
 
@@ -616,10 +763,15 @@ export class RestaurantPlanComponent implements OnInit {
               y: drag.fixedY + (len / 2) * drag.axisY } : w));
         break;
       }
+
+      case 'move-decor':
+        this.placedDecors.update(ds => ds.map(d => d.id === drag.id
+          ? { ...d, x: Math.max(0, mx - drag.offsetX), y: Math.max(0, my - drag.offsetY) } : d));
+        break;
     }
   }
 
-  @HostListener('document:mouseup')
+  @HostListener('document:pointerup')
   onMouseUp() {
     if (this.activeDrag?.mode === 'move-table') {
       this.checkMerge(this.activeDrag.id);

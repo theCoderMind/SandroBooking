@@ -34,7 +34,11 @@ security:
         - { path: ^/api/v1/widget, roles: PUBLIC_ACCESS }
         - { path: ^/api/v1/auth/login, roles: PUBLIC_ACCESS }
         - { path: ^/api/v1/auth/me, roles: ROLE_USER }
-        - { path: ^/api/v1/admin, roles: ROLE_TENANT_ADMIN }
+        # Staff schreiben/löschen: nur SUPER_ADMIN
+        - { path: ^/api/v1/admin/staff$,  roles: ROLE_SUPER_ADMIN, methods: [POST] }
+        - { path: ^/api/v1/admin/staff/,  roles: ROLE_SUPER_ADMIN, methods: [PATCH, DELETE] }
+        # Alles andere in /admin: jeder eingeloggte User
+        - { path: ^/api/v1/admin, roles: ROLE_USER }
 
 when@test:
     security:

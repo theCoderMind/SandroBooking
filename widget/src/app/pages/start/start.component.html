@@ -1,0 +1,1897 @@
+<div class="widget-root" [attr.data-layout]="layout()">
+
+<!-- ─── Loading ─────────────────────────────────────────────────────────── -->
+  @if (state() === 'loading') {
+    <div class="loading-card">
+      <span class="spinner"></span>
+      <span>Wird geladen …</span>
+    </div>
+  }
+
+  <!-- ─── Success ──────────────────────────────────────────────────────────── -->
+  @else if (state() === 'success') {
+    <div class="success-card">
+      <div class="success-icon">✓</div>
+      <h2>Reservierung bestätigt</h2>
+      <p class="success-lead">
+        Danke <strong>{{ successInfo()!.name }}</strong>! Deine Reservierung am
+        <strong>{{ formatDate(successInfo()!.date) }}</strong> um
+        <strong>{{ successInfo()!.time }} Uhr</strong> für
+        <strong>{{ successInfo()!.people }} {{ successInfo()!.people === 1 ? 'Person' : 'Personen' }}</strong>
+        @if (venues().length > 1) { im <strong>{{ successInfo()!.venue }}</strong> }
+        wurde gespeichert.
+      </p>
+      <p class="success-hint">Du erhältst in Kürze eine Bestätigungsmail.</p>
+      @if (onlineAenderungen() || onlineStornierung()) {
+        <div class="success-policy">
+          @if (onlineAenderungen()) {
+            <p>✏️ Änderungen möglich bis {{ formatMinutenPolicy(onlineAenderungenMinuten()) }} vor der Reservierung.</p>
+          }
+          @if (onlineStornierung()) {
+            <p>🗑 Stornierung möglich bis {{ formatMinutenPolicy(onlineStornierungMinuten()) }} vor der Reservierung.</p>
+          }
+        </div>
+      }
+      <button type="button" class="btn-secondary" (click)="reset()">Neue Reservierung</button>
+    </div>
+  }
+
+  <!-- ─── Layouts ──────────────────────────────────────────────────────────── -->
+  @else {
+
+    @if (hinweisOpen()) {
+      <div class="widget-menu-overlay" (click)="dismissHinweis()">
+        <div class="widget-menu-overlay__box widget-menu-overlay__box--hinweis" (click)="$event.stopPropagation()">
+          <div class="widget-menu-overlay__header">
+            <span>{{ hinweistextUeberschrift() || 'Hinweis' }}</span>
+            <button type="button" class="widget-menu-overlay__close" (click)="dismissHinweis()">✕</button>
+          </div>
+          @if (hinweistextInhalt()) {
+            <div class="widget-hinweis-content">{{ hinweistextInhalt() }}</div>
+          }
+          @if (hinweistextFooter()) {
+            <div class="widget-hinweis-footer">{{ hinweistextFooter() }}</div>
+          }
+          <div class="widget-hinweis-actions">
+            <button type="button" class="widget-hinweis-actions__btn" (click)="dismissHinweis()">
+              Verstanden
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    @switch (layout()) {
+
+      <!-- ═══════════════════════════════════════════════
+           CARD LAYOUT
+      ════════════════════════════════════════════════ -->
+      @case ('card') {
+        <div class="preview-card" [class.has-picker-open]="cardOpenPicker() !== null">
+          <!-- Hero image area -->
+          <div class="preview-card__hero"
+               [class.has-image]="!!imageUrl()"
+               [style.background-image]="imageUrl() ? 'url(' + imageUrl() + ')' : null">
+            @if (!imageUrl()) {
+              <span class="preview-card__hero-hint">🍽 Restaurant</span>
+            }
+          </div>
+
+          @if (cardStep() === 1) {
+            <!-- Step 1: date / time / seats -->
+            <h4 class="preview-card__title">{{ headingTitle() || 'Tisch reservieren' }}</h4>
+            @if (showSubtitle() && headingSubtitle()) {
+              <p class="preview-card__subtitle">{{ headingSubtitle() }}</p>
+            }
+
+            <!-- Seats stepper -->
+            <div class="preview-card__group preview-card__group--picker-host">
+              @if (cardOpenPicker() === 'seats') {
+                <div class="preview-card__picker preview-card__picker--seats">
+                  <div class="preview-planner">
+                    <div class="preview-planner__chips preview-planner__chips--seats">
+                      @for (seat of seatOptions; track seat.count) {
+                        <button type="button"
+                                class="preview-planner__chip preview-planner__chip--seat"
+                                [class.is-selected]="seat.count === people()"
+                                (click)="cardSelectSeats(seat.count)">
+                          <span class="preview-planner__chip-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                              <circle cx="10" cy="6" r="3"/>
+                              <path d="M3 18c0-3.866 3.134-7 7-7s7 3.134 7 7"/>
+                            </svg>
+                          </span>
+                          <span class="preview-planner__chip-label">{{ seat.label }}</span>
+                        </button>
+                      }
+                    </div>
+                  </div>
+                </div>
+              }
+              <div class="preview-card__label">Personen</div>
+              <div class="preview-card__stepper">
+                <button type="button" class="preview-card__stepper-btn" (click)="cardDecSeats()">−</button>
+                <button type="button"
+                        class="preview-card__stepper-num"
+                        [class.is-active]="cardOpenPicker() === 'seats'"
+                        (click)="cardTogglePicker('seats')">{{ people() }}</button>
+                <button type="button" class="preview-card__stepper-btn" (click)="cardIncSeats()">+</button>
+              </div>
+            </div>
+
+            <!-- Date & time fields -->
+            <div class="preview-card__group preview-card__group--picker-host">
+              @if (cardOpenPicker() === 'date') {
+                <div class="preview-card__picker preview-card__picker--date">
+                  <div class="preview-planner">
+                    <div class="preview-planner__cal-bar">
+                      <button class="preview-planner__cal-nav" type="button" (click)="prevMonth()">‹</button>
+                      <span class="preview-planner__cal-month">{{ calendarMonthLabel() }}</span>
+                      <button class="preview-planner__cal-nav" type="button" (click)="nextMonth()">›</button>
+                    </div>
+                    <div class="preview-planner__cal-grid preview-planner__cal-grid--weekdays">
+                      @for (wd of weekdays; track $index) {
+                        <span class="preview-planner__cal-weekday">{{ wd }}</span>
+                      }
+                    </div>
+                    <div class="preview-planner__cal-grid">
+                      @for (cell of calendarCells(); track $index) {
+                        @if (cell.day !== null) {
+                          <button type="button"
+                                  class="preview-planner__cal-day"
+                                  [class.is-today]="cell.isToday"
+                                  [class.is-selected]="cell.isSelected"
+                                  [class.is-disabled]="cell.isDisabled"
+                                  [disabled]="cell.isDisabled"
+                                  (click)="cardSelectDay(cell.day!)">
+                            {{ cell.day }}
+                          </button>
+                        } @else {
+                          <span class="preview-planner__cal-day preview-planner__cal-day--empty"></span>
+                        }
+                      }
+                    </div>
+                  </div>
+                </div>
+              }
+              @if (cardOpenPicker() === 'time') {
+                <div class="preview-card__picker preview-card__picker--time">
+                  <div class="preview-planner">
+                    <div class="preview-planner__chips preview-planner__chips--times">
+                      @for (slot of timeSlots(); track slot) {
+                        <button type="button"
+                                class="preview-planner__chip"
+                                [class.is-selected]="slot === validTime()"
+                                (click)="cardSelectTime(slot)">
+                          {{ slot }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+                </div>
+              }
+              <div class="preview-card__label">Datum &amp; Uhrzeit</div>
+              <div class="preview-card__datetime">
+                <button class="preview-card__datetime-field"
+                        type="button"
+                        [class.is-active]="cardOpenPicker() === 'date'"
+                        (click)="cardTogglePicker('date')">
+                  <span class="preview-card__datetime-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <rect x="2" y="3.5" width="16" height="14" rx="2.5"/>
+                      <line x1="2" y1="8.5" x2="18" y2="8.5"/>
+                      <line x1="6.5" y1="1" x2="6.5" y2="5.5"/>
+                      <line x1="13.5" y1="1" x2="13.5" y2="5.5"/>
+                      <rect x="5" y="11.5" width="2.5" height="2.5" rx="0.5" fill="currentColor" stroke="none"/>
+                      <rect x="8.75" y="11.5" width="2.5" height="2.5" rx="0.5" fill="currentColor" stroke="none"/>
+                    </svg>
+                  </span>
+                  <span class="preview-card__datetime-meta">
+                    <span class="preview-card__datetime-hint">Datum</span>
+                    <span class="preview-card__datetime-text">{{ selectedDateLabel() }}</span>
+                  </span>
+                  <span class="preview-card__datetime-chevron" [class.is-open]="cardOpenPicker() === 'date'">⌄</span>
+                </button>
+                <button class="preview-card__datetime-field"
+                        type="button"
+                        [class.is-active]="cardOpenPicker() === 'time'"
+                        (click)="cardTogglePicker('time')">
+                  <span class="preview-card__datetime-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" width="16" height="16">
+                      <circle cx="10" cy="10" r="8"/>
+                      <polyline points="10,4.5 10,10 13.5,13"/>
+                    </svg>
+                  </span>
+                  <span class="preview-card__datetime-meta">
+                    <span class="preview-card__datetime-hint">Uhrzeit</span>
+                    <span class="preview-card__datetime-text">{{ validTime() }} Uhr</span>
+                  </span>
+                  <span class="preview-card__datetime-chevron" [class.is-open]="cardOpenPicker() === 'time'">⌄</span>
+                </button>
+              </div>
+            </div>
+
+            @if (tischartenAktiv() && tischartenModus() === 'liste' && availableTischarten().length > 0) {
+              <div class="tischart-picker">
+                <div class="tischart-picker__label">Tischart</div>
+                <div class="tischart-picker__chips">
+                  @for (t of availableTischarten(); track t.key) {
+                    <button type="button"
+                            class="tischart-chip"
+                            [class.is-selected]="selectedTischart() === t.key"
+                            (click)="selectedTischart.set(t.key)">
+                      <span>{{ t.icon }}</span> {{ t.label }}
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+
+            @if (speisekarte()) {
+              <button type="button" class="widget-menu-btn" (click)="toggleMenu()">
+                🍽 Speisekarte ansehen
+              </button>
+            }
+
+            @if (showMaxPersonenWarning()) {
+              <div class="widget-max-warning">
+                <p class="widget-max-warning__text">{{ maxPersonenText() }}</p>
+                @if (maxPersonenPhone()) {
+                  <a class="widget-max-warning__link" [href]="'tel:' + maxPersonenPhone()">
+                    📞 {{ maxPersonenPhone() }}
+                  </a>
+                }
+                @if (maxPersonenEmail()) {
+                  <a class="widget-max-warning__link" [href]="'mailto:' + maxPersonenEmail()">
+                    ✉ {{ maxPersonenEmail() }}
+                  </a>
+                }
+              </div>
+            } @else {
+              <button class="preview-card__cta" type="button" (click)="cardNextStep()">
+                {{ buttonLabel() || 'Reservieren' }}
+              </button>
+            }
+
+          } @else {
+            <!-- Step 2: guest data -->
+            <h4 class="preview-card__title">Deine Daten</h4>
+            <p class="preview-card__subtitle">
+              {{ people() }}&nbsp;{{ people() === 1 ? 'Gast' : 'Gäste' }}
+              · {{ selectedDateLabel() }}
+              · {{ validTime() }}&nbsp;Uhr
+            </p>
+
+            <div class="preview-card__form">
+              @if (raumauswahl() && filteredVenues().length > 1) {
+                <div class="preview-card__field">
+                  <label class="preview-card__field-label">Bereich</label>
+                  <div class="preview-card__form-row preview-card__form-row--venue">
+                    @for (v of filteredVenues(); track v.id) {
+                      <button type="button"
+                              class="venue-chip"
+                              [class.is-active]="selectedVenue()?.id === v.id"
+                              (click)="selectVenue(v)">{{ v.name }}</button>
+                    }
+                  </div>
+                </div>
+              }
+
+              <div class="preview-card__form-row preview-card__form-row--split">
+                <div class="preview-card__field">
+                  <label class="preview-card__field-label" for="card-name">Name</label>
+                  <input id="card-name" type="text" class="preview-card__field-input preview-card__field-input--real"
+                         [ngModel]="guestName()" (ngModelChange)="guestName.set($event)"
+                         placeholder="Vor- und Nachname" autocomplete="name" name="cardName">
+                </div>
+                <div class="preview-card__field">
+                  <label class="preview-card__field-label" for="card-email">E-Mail</label>
+                  <input id="card-email" type="email" class="preview-card__field-input preview-card__field-input--real"
+                         [ngModel]="guestEmail()" (ngModelChange)="guestEmail.set($event)"
+                         placeholder="name@beispiel.de" autocomplete="email" name="cardEmail">
+                </div>
+              </div>
+
+              <div class="preview-card__field">
+                <label class="preview-card__field-label" for="card-phone">
+                  Telefon
+                  @if (isRequired('phone')) { <span class="field-required">*</span> }
+                  @else { <span class="preview-card__field-optional">(optional)</span> }
+                </label>
+                <input id="card-phone" type="tel" class="preview-card__field-input preview-card__field-input--real"
+                       [ngModel]="guestPhone()" (ngModelChange)="guestPhone.set($event)"
+                       placeholder="+49 …" autocomplete="tel" name="cardPhone">
+              </div>
+
+              @if (kinderStuehleAktiv()) {
+                <div class="preview-card__field">
+                  <label class="preview-card__field-label">Kinderstühle</label>
+                  <div class="kinder-stepper">
+                    <button type="button" class="kinder-stepper__btn" (click)="decKinderStuehle()">−</button>
+                    <span class="kinder-stepper__val">{{ kinderStuehle() }}</span>
+                    <button type="button" class="kinder-stepper__btn" (click)="incKinderStuehle()">+</button>
+                    <span class="kinder-stepper__hint">max. {{ kinderStuehleOnline() }}</span>
+                  </div>
+                </div>
+              }
+              @if (rollstuhlAktiv()) {
+                <label class="extra-checkbox">
+                  <input type="checkbox" [checked]="rollstuhl()" (change)="rollstuhl.set(!rollstuhl())">
+                  <span class="extra-checkbox__box"></span>
+                  <span class="extra-checkbox__label">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <circle cx="13.5" cy="3" r="1.8" fill="currentColor" stroke="none"/>
+                      <line x1="7" y1="5.5" x2="7" y2="10"/>
+                      <line x1="7" y1="10" x2="13" y2="10"/>
+                      <path d="M13.5,4.8 L11,10"/>
+                      <line x1="13" y1="10" x2="13" y2="14"/>
+                      <line x1="10" y1="14" x2="16" y2="14"/>
+                      <path d="M11,7.5 Q8.5,11.5 8,16.2"/>
+                      <circle cx="8" cy="17" r="2.8"/>
+                      <circle cx="16.5" cy="15" r="1.2"/>
+                    </svg>
+                    Rollstuhlgerechter Platz gewünscht
+                  </span>
+                </label>
+              }
+              @if (hundAktiv()) {
+                <label class="extra-checkbox">
+                  <input type="checkbox" [checked]="hund()" (change)="hund.set(!hund())">
+                  <span class="extra-checkbox__box"></span>
+                  <span class="extra-checkbox__label">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <path d="M4,12 Q4,9 6,9 L13,9 Q15.5,9 15.5,11.5 Q15.5,14 13,14 L6,14 Q4,14 4,12 Z"/>
+                      <circle cx="16" cy="7.5" r="2.8"/>
+                      <path d="M14,5.2 Q15,2.5 17.5,3.5 Q17.5,6.2 15.2,5.8"/>
+                      <path d="M4,12 Q1.5,9.5 2,6.5"/>
+                      <line x1="12" y1="14" x2="12" y2="18"/>
+                      <line x1="10.5" y1="14" x2="10.5" y2="18"/>
+                      <line x1="7" y1="14" x2="7" y2="18"/>
+                      <line x1="5.5" y1="14" x2="5.5" y2="18"/>
+                    </svg>
+                    Hund dabei
+                  </span>
+                </label>
+              }
+              @if (allergeneAktiv() && verfuegbareAllergene().length > 0) {
+                <div class="allergen-picker">
+                  <span class="allergen-picker__label">Allergien / Unverträglichkeiten</span>
+                  <div class="allergen-picker__chips">
+                    @for (a of verfuegbareAllergene(); track a.key) {
+                      <button type="button" class="allergen-chip"
+                              [class.is-selected]="isAllergenSelected(a.key)"
+                              (click)="toggleAllergen(a.key)">{{ a.label }}</button>
+                    }
+                  </div>
+                </div>
+              }
+
+              <div class="preview-card__field">
+                <label class="preview-card__field-label" for="card-notes">
+                  Notizen
+                  @if (isRequired('notes')) { <span class="field-required">*</span> }
+                  @else { <span class="preview-card__field-optional">(optional)</span> }
+                </label>
+                <textarea id="card-notes" class="preview-card__field-input preview-card__field-input--real preview-card__field-input--area"
+                          [ngModel]="notes()" (ngModelChange)="notes.set($event)"
+                          placeholder="Allergien, Kinderstuhl, besondere Wünsche …"
+                          name="cardNotes" rows="2"></textarea>
+              </div>
+            </div>
+
+            @if (state() === 'error') {
+              <div class="widget-alert">{{ errorMessage() }}</div>
+            }
+
+            <label class="preview-card__consent" [class.is-checked]="cardConsent()">
+              <input type="checkbox" class="preview-card__consent-input"
+                     [checked]="cardConsent()" (change)="cardToggleConsent()">
+              <span class="preview-card__consent-box" aria-hidden="true">
+                @if (cardConsent()) { <span class="check-icon">✓</span> }
+              </span>
+              <span class="preview-card__consent-text">
+                Ich willige ein, dass meine Daten zur Bearbeitung der Reservierung gespeichert werden.
+              </span>
+            </label>
+
+            <div class="preview-card__nav">
+              <button class="preview-card__back" type="button" (click)="cardPrevStep()">
+                ‹ Zurück
+              </button>
+              <button class="preview-card__cta preview-card__cta--submit"
+                      type="button"
+                      [class.is-disabled]="!canSubmit()"
+                      [disabled]="!canSubmit()"
+                      (click)="weiter()">
+                @if (state() === 'submitting') { Wird gesendet … }
+                @else { Reservierung absenden }
+              </button>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- ═══════════════════════════════════════════════
+           SIDEBAR LAYOUT
+      ════════════════════════════════════════════════ -->
+      @case ('sidebar') {
+        <div class="preview-sidebar"
+             [class.has-image]="!!imageUrl()"
+             [style.background-image]="imageUrl() ? 'url(' + imageUrl() + ')' : null">
+          @if (!imageUrl()) {
+            <div class="preview-sidebar__placeholder">
+              <span>🖼</span>
+              <span>Hintergrundbild</span>
+            </div>
+          }
+
+          <div class="preview-sidebar__card"
+               [class.is-picker-open]="sidebarOpenPicker() !== null"
+               [class.is-step-2]="sidebarStep() === 2">
+
+            @if (sidebarStep() === 1 && sidebarOpenPicker() === null) {
+              <!-- Step 1: overview -->
+              <h4 class="preview-sidebar__title">
+                @for (word of titleWords(); track $index) {
+                  <span>{{ word }}</span>
+                }
+              </h4>
+              @if (showSubtitle() && headingSubtitle()) {
+                <p class="preview-sidebar__subtitle">{{ headingSubtitle() }}</p>
+              }
+
+              <div class="preview-sidebar__row">
+                <button type="button"
+                        class="preview-sidebar__group preview-sidebar__group--button"
+                        (click)="sidebarTogglePicker('date')">
+                  <label class="preview-sidebar__label">Datum</label>
+                  <div class="preview-sidebar__value">{{ selectedDateLabel() }}</div>
+                  <span class="preview-sidebar__chevron">›</span>
+                </button>
+                <button type="button"
+                        class="preview-sidebar__group preview-sidebar__group--button"
+                        (click)="sidebarTogglePicker('time')">
+                  <label class="preview-sidebar__label">Uhrzeit</label>
+                  <div class="preview-sidebar__value">{{ validTime() }}&nbsp;Uhr</div>
+                  <span class="preview-sidebar__chevron">›</span>
+                </button>
+              </div>
+
+              <button type="button"
+                      class="preview-sidebar__group preview-sidebar__group--button"
+                      (click)="sidebarTogglePicker('seats')">
+                <label class="preview-sidebar__label">Personen</label>
+                <div class="preview-sidebar__value">
+                  {{ people() }}&nbsp;{{ people() === 1 ? 'Gast' : 'Gäste' }}
+                </div>
+                <span class="preview-sidebar__chevron">›</span>
+              </button>
+
+              @if (tischartenAktiv() && tischartenModus() === 'liste' && availableTischarten().length > 0) {
+                <div class="tischart-picker">
+                  <div class="tischart-picker__label">Tischart</div>
+                  <div class="tischart-picker__chips">
+                    @for (t of availableTischarten(); track t.key) {
+                      <button type="button"
+                              class="tischart-chip"
+                              [class.is-active]="selectedTischart() === t.key"
+                              (click)="selectedTischart.set(t.key)">
+                        <span>{{ t.icon }}</span> {{ t.label }}
+                      </button>
+                    }
+                  </div>
+                </div>
+              }
+
+              @if (speisekarte()) {
+                <button type="button" class="widget-menu-btn" (click)="toggleMenu()">
+                  🍽 Speisekarte ansehen
+                </button>
+              }
+
+              @if (showMaxPersonenWarning()) {
+                <div class="widget-max-warning">
+                  <p class="widget-max-warning__text">{{ maxPersonenText() }}</p>
+                  @if (maxPersonenPhone()) {
+                    <a class="widget-max-warning__link" [href]="'tel:' + maxPersonenPhone()">
+                      📞 {{ maxPersonenPhone() }}
+                    </a>
+                  }
+                  @if (maxPersonenEmail()) {
+                    <a class="widget-max-warning__link" [href]="'mailto:' + maxPersonenEmail()">
+                      ✉ {{ maxPersonenEmail() }}
+                    </a>
+                  }
+                </div>
+              } @else {
+                <button class="preview-sidebar__cta" type="button" (click)="sidebarNextStep()">
+                  {{ buttonLabel() || 'Reservieren' }}
+                </button>
+              }
+
+            } @else if (sidebarStep() === 2) {
+              <!-- Step 2: guest data -->
+              <h4 class="preview-sidebar__title">
+                <span>Deine</span>
+                <span>Daten</span>
+              </h4>
+              <p class="preview-sidebar__subtitle">
+                {{ people() }}&nbsp;{{ people() === 1 ? 'Gast' : 'Gäste' }}
+                · {{ selectedDateLabel() }}
+                · {{ validTime() }}&nbsp;Uhr
+              </p>
+
+              @if (raumauswahl() && filteredVenues().length > 1) {
+                <div class="preview-sidebar__group">
+                  <label class="preview-sidebar__label">Bereich</label>
+                  <div class="venue-chip-row">
+                    @for (v of filteredVenues(); track v.id) {
+                      <button type="button"
+                              class="venue-chip"
+                              [class.is-active]="selectedVenue()?.id === v.id"
+                              (click)="selectVenue(v)">{{ v.name }}</button>
+                    }
+                  </div>
+                </div>
+              }
+
+              <div class="preview-sidebar__row">
+                <div class="preview-sidebar__group">
+                  <label class="preview-sidebar__label" for="sb-name">Name</label>
+                  <input id="sb-name" type="text" class="preview-sidebar__input preview-sidebar__input--real"
+                         [ngModel]="guestName()" (ngModelChange)="guestName.set($event)"
+                         placeholder="Vor- und Nachname" autocomplete="name" name="sbName">
+                </div>
+                <div class="preview-sidebar__group">
+                  <label class="preview-sidebar__label" for="sb-email">E-Mail</label>
+                  <input id="sb-email" type="email" class="preview-sidebar__input preview-sidebar__input--real"
+                         [ngModel]="guestEmail()" (ngModelChange)="guestEmail.set($event)"
+                         placeholder="name@beispiel.de" autocomplete="email" name="sbEmail">
+                </div>
+              </div>
+
+              <div class="preview-sidebar__group">
+                <label class="preview-sidebar__label" for="sb-phone">
+                  Telefon
+                  @if (isRequired('phone')) { <span class="field-required">*</span> }
+                  @else { <span class="preview-sidebar__optional">(optional)</span> }
+                </label>
+                <input id="sb-phone" type="tel" class="preview-sidebar__input preview-sidebar__input--real"
+                       [ngModel]="guestPhone()" (ngModelChange)="guestPhone.set($event)"
+                       placeholder="+49 …" autocomplete="tel" name="sbPhone">
+              </div>
+
+              @if (kinderStuehleAktiv()) {
+                <div class="preview-sidebar__group">
+                  <label class="preview-sidebar__label">Kinderstühle</label>
+                  <div class="kinder-stepper">
+                    <button type="button" class="kinder-stepper__btn" (click)="decKinderStuehle()">−</button>
+                    <span class="kinder-stepper__val">{{ kinderStuehle() }}</span>
+                    <button type="button" class="kinder-stepper__btn" (click)="incKinderStuehle()">+</button>
+                    <span class="kinder-stepper__hint">max. {{ kinderStuehleOnline() }}</span>
+                  </div>
+                </div>
+              }
+              @if (rollstuhlAktiv()) {
+                <label class="extra-checkbox">
+                  <input type="checkbox" [checked]="rollstuhl()" (change)="rollstuhl.set(!rollstuhl())">
+                  <span class="extra-checkbox__box"></span>
+                  <span class="extra-checkbox__label">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <circle cx="13.5" cy="3" r="1.8" fill="currentColor" stroke="none"/>
+                      <line x1="7" y1="5.5" x2="7" y2="10"/>
+                      <line x1="7" y1="10" x2="13" y2="10"/>
+                      <path d="M13.5,4.8 L11,10"/>
+                      <line x1="13" y1="10" x2="13" y2="14"/>
+                      <line x1="10" y1="14" x2="16" y2="14"/>
+                      <path d="M11,7.5 Q8.5,11.5 8,16.2"/>
+                      <circle cx="8" cy="17" r="2.8"/>
+                      <circle cx="16.5" cy="15" r="1.2"/>
+                    </svg>
+                    Rollstuhlgerechter Platz gewünscht
+                  </span>
+                </label>
+              }
+              @if (hundAktiv()) {
+                <label class="extra-checkbox">
+                  <input type="checkbox" [checked]="hund()" (change)="hund.set(!hund())">
+                  <span class="extra-checkbox__box"></span>
+                  <span class="extra-checkbox__label">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <path d="M4,12 Q4,9 6,9 L13,9 Q15.5,9 15.5,11.5 Q15.5,14 13,14 L6,14 Q4,14 4,12 Z"/>
+                      <circle cx="16" cy="7.5" r="2.8"/>
+                      <path d="M14,5.2 Q15,2.5 17.5,3.5 Q17.5,6.2 15.2,5.8"/>
+                      <path d="M4,12 Q1.5,9.5 2,6.5"/>
+                      <line x1="12" y1="14" x2="12" y2="18"/>
+                      <line x1="10.5" y1="14" x2="10.5" y2="18"/>
+                      <line x1="7" y1="14" x2="7" y2="18"/>
+                      <line x1="5.5" y1="14" x2="5.5" y2="18"/>
+                    </svg>
+                    Hund dabei
+                  </span>
+                </label>
+              }
+              @if (allergeneAktiv() && verfuegbareAllergene().length > 0) {
+                <div class="allergen-picker">
+                  <span class="allergen-picker__label">Allergien / Unverträglichkeiten</span>
+                  <div class="allergen-picker__chips">
+                    @for (a of verfuegbareAllergene(); track a.key) {
+                      <button type="button" class="allergen-chip"
+                              [class.is-selected]="isAllergenSelected(a.key)"
+                              (click)="toggleAllergen(a.key)">{{ a.label }}</button>
+                    }
+                  </div>
+                </div>
+              }
+
+              <div class="preview-sidebar__group">
+                <label class="preview-sidebar__label" for="sb-notes">
+                  Notizen
+                  @if (isRequired('notes')) { <span class="field-required">*</span> }
+                  @else { <span class="preview-sidebar__optional">(optional)</span> }
+                </label>
+                <textarea id="sb-notes" class="preview-sidebar__input preview-sidebar__input--real preview-sidebar__input--area"
+                          [ngModel]="notes()" (ngModelChange)="notes.set($event)"
+                          placeholder="Allergien, Kinderstuhl …"
+                          name="sbNotes" rows="2"></textarea>
+              </div>
+
+              @if (state() === 'error') {
+                <div class="widget-alert">{{ errorMessage() }}</div>
+              }
+
+              <label class="preview-sidebar__consent" [class.is-checked]="sidebarConsent()">
+                <input type="checkbox" class="preview-sidebar__consent-input"
+                       [checked]="sidebarConsent()" (change)="sidebarToggleConsent()">
+                <span class="preview-sidebar__consent-box" aria-hidden="true">
+                  @if (sidebarConsent()) { <span class="check-icon">✓</span> }
+                </span>
+                <span class="preview-sidebar__consent-text">
+                  Ich willige ein, dass meine Daten zur Bearbeitung der Reservierung gespeichert werden.
+                </span>
+              </label>
+
+              <div class="preview-sidebar__nav">
+                <button class="preview-sidebar__back" type="button" (click)="sidebarPrevStep()">←</button>
+                <button class="preview-sidebar__cta preview-sidebar__cta--submit"
+                        type="button"
+                        [class.is-disabled]="!canSubmit()"
+                        [disabled]="!canSubmit()"
+                        (click)="weiter()">
+                  @if (state() === 'submitting') { Wird gesendet … }
+                  @else { Reservierung absenden }
+                </button>
+              </div>
+
+            } @else {
+              <!-- Picker overlay -->
+              <div class="preview-sidebar__picker">
+                <div class="preview-sidebar__picker-head">
+                  <button class="preview-sidebar__picker-back" type="button" (click)="sidebarClosePicker()">←</button>
+                  <span class="preview-sidebar__picker-title">
+                    @switch (sidebarOpenPicker()) {
+                      @case ('date')  { Datum wählen }
+                      @case ('time')  { Uhrzeit wählen }
+                      @case ('seats') { Personen wählen }
+                    }
+                  </span>
+                </div>
+                <span class="preview-sidebar__picker-accent" aria-hidden="true"></span>
+
+                @switch (sidebarOpenPicker()) {
+                  @case ('date') {
+                    <div class="preview-sidebar__cal">
+                      <div class="preview-sidebar__cal-bar">
+                        <button class="preview-sidebar__cal-nav" type="button" (click)="prevMonth()">‹</button>
+                        <span class="preview-sidebar__cal-month">{{ calendarMonthLabel() }}</span>
+                        <button class="preview-sidebar__cal-nav" type="button" (click)="nextMonth()">›</button>
+                      </div>
+                      <div class="preview-sidebar__cal-weekdays">
+                        @for (wd of weekdays; track $index) {
+                          <span>{{ wd }}</span>
+                        }
+                      </div>
+                      <div class="preview-sidebar__cal-grid">
+                        @for (cell of calendarCells(); track $index) {
+                          @if (cell.day !== null) {
+                            <button type="button"
+                                    class="preview-sidebar__cal-day"
+                                    [class.is-today]="cell.isToday"
+                                    [class.is-selected]="cell.isSelected"
+                                    [class.is-disabled]="cell.isDisabled"
+                                    [disabled]="cell.isDisabled"
+                                    (click)="sidebarSelectDay(cell.day!)">
+                              {{ cell.day }}
+                            </button>
+                          } @else {
+                            <span class="preview-sidebar__cal-day preview-sidebar__cal-day--empty"></span>
+                          }
+                        }
+                      </div>
+                    </div>
+                  }
+                  @case ('time') {
+                    <div class="preview-sidebar__times">
+                      @for (slot of timeSlots(); track slot) {
+                        <button type="button"
+                                class="preview-sidebar__time"
+                                [class.is-selected]="slot === validTime()"
+                                (click)="sidebarSelectTime(slot)">
+                          {{ slot }}
+                        </button>
+                      }
+                    </div>
+                  }
+                  @case ('seats') {
+                    <div class="preview-sidebar__seats">
+                      @for (seat of seatOptions; track seat.count) {
+                        <button type="button"
+                                class="preview-sidebar__seat"
+                                [class.is-selected]="seat.count === people()"
+                                (click)="sidebarSelectSeats(seat.count)">
+                          <span class="preview-sidebar__seat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                              <circle cx="10" cy="6" r="3"/>
+                              <path d="M3 18c0-3.866 3.134-7 7-7s7 3.134 7 7"/>
+                            </svg>
+                          </span>
+                          <span class="preview-sidebar__seat-count">{{ seat.count }}</span>
+                          <span class="preview-sidebar__seat-label">{{ seat.count === 1 ? 'Gast' : (seat.count >= 8 ? 'Gäste +' : 'Gäste') }}</span>
+                        </button>
+                      }
+                    </div>
+                  }
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- ═══════════════════════════════════════════════
+           STACKED LAYOUT
+      ════════════════════════════════════════════════ -->
+      @case ('stacked') {
+        <div class="preview-stacked" [class.is-step-2]="stackedStep() === 2" [class.has-picker-open]="stackedOpenPicker() !== null">
+
+          <div class="preview-stacked__statusbar">
+            <div class="preview-stacked__live">
+              <span class="preview-stacked__live-dot" aria-hidden="true"></span>
+              <span class="preview-stacked__live-label">Live · Tisch buchen</span>
+            </div>
+            <div class="preview-stacked__steps">
+              <span class="preview-stacked__step"
+                    [class.is-active]="stackedStep() === 1"
+                    [class.is-done]="stackedStep() > 1">1</span>
+              <span class="preview-stacked__step-bar" [class.is-done]="stackedStep() > 1"></span>
+              <span class="preview-stacked__step" [class.is-active]="stackedStep() === 2">2</span>
+            </div>
+          </div>
+
+          <div class="preview-stacked__accent" aria-hidden="true">
+            <span class="preview-stacked__accent-fill"
+                  [style.width.%]="stackedStep() === 1 ? 50 : 100"></span>
+          </div>
+
+          <header class="preview-stacked__header">
+            <h4 class="preview-stacked__title">{{ headingTitle() || 'Tisch reservieren' }}</h4>
+            @if (showSubtitle() && headingSubtitle()) {
+              <p class="preview-stacked__subtitle">{{ headingSubtitle() }}</p>
+            }
+          </header>
+
+          @if (stackedStep() === 1) {
+            <div class="preview-stacked__tiles-host">
+            <div class="preview-stacked__tiles">
+              <button class="preview-stacked__tile"
+                      type="button"
+                      [class.is-active]="stackedOpenPicker() === 'date'"
+                      (click)="stackedTogglePicker('date')">
+                <span class="preview-stacked__tile-eyebrow">
+                  <span class="tile-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                      <rect x="2" y="3.5" width="16" height="14" rx="2.5"/>
+                      <line x1="2" y1="8.5" x2="18" y2="8.5"/>
+                      <line x1="6.5" y1="1" x2="6.5" y2="5.5"/>
+                      <line x1="13.5" y1="1" x2="13.5" y2="5.5"/>
+                      <rect x="5" y="11.5" width="2.5" height="2.5" rx="0.5" fill="currentColor" stroke="none"/>
+                      <rect x="8.75" y="11.5" width="2.5" height="2.5" rx="0.5" fill="currentColor" stroke="none"/>
+                    </svg>
+                  </span> Datum
+                </span>
+                <span class="preview-stacked__tile-value">{{ stackedShortDateLabel().day }}</span>
+                <span class="preview-stacked__tile-meta">{{ stackedShortDateLabel().month }} {{ calendarYear() }}</span>
+              </button>
+
+              <button class="preview-stacked__tile"
+                      type="button"
+                      [class.is-active]="stackedOpenPicker() === 'time'"
+                      (click)="stackedTogglePicker('time')">
+                <span class="preview-stacked__tile-eyebrow">
+                  <span class="tile-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" width="14" height="14">
+                      <circle cx="10" cy="10" r="8"/>
+                      <polyline points="10,4.5 10,10 13.5,13"/>
+                    </svg>
+                  </span> Uhrzeit
+                </span>
+                <span class="preview-stacked__tile-value">{{ validTime() }}</span>
+                <span class="preview-stacked__tile-meta">Uhr</span>
+              </button>
+
+              <button class="preview-stacked__tile"
+                      type="button"
+                      [class.is-active]="stackedOpenPicker() === 'seats'"
+                      (click)="stackedTogglePicker('seats')">
+                <span class="preview-stacked__tile-eyebrow">
+                    <span class="tile-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                      <circle cx="7.5" cy="6" r="2.5"/>
+                      <path d="M1 18c0-3.59 2.91-6.5 6.5-6.5"/>
+                      <circle cx="13" cy="5.5" r="2.5"/>
+                      <path d="M7.5 18c0-3.314 2.462-6 5.5-6s5.5 2.686 5.5 6"/>
+                    </svg>
+                  </span> Personen
+                </span>
+                <span class="preview-stacked__tile-value">{{ people() }}</span>
+                <span class="preview-stacked__tile-meta">{{ people() === 1 ? 'Gast' : 'Gäste' }}</span>
+              </button>
+            </div>
+
+            @if (stackedOpenPicker() !== null) {
+              <div class="preview-stacked__picker">
+                @switch (stackedOpenPicker()) {
+                  @case ('date') {
+                    <div class="preview-stacked__cal">
+                      <div class="preview-stacked__cal-bar">
+                        <button class="preview-stacked__cal-nav" type="button" (click)="prevMonth()">‹</button>
+                        <span class="preview-stacked__cal-month">{{ calendarMonthLabel() }}</span>
+                        <button class="preview-stacked__cal-nav" type="button" (click)="nextMonth()">›</button>
+                      </div>
+                      <div class="preview-stacked__cal-weekdays">
+                        @for (wd of weekdays; track wd) {
+                          <span>{{ wd }}</span>
+                        }
+                      </div>
+                      <div class="preview-stacked__cal-grid">
+                        @for (cell of calendarCells(); track $index) {
+                          @if (cell.day === null) {
+                            <span class="preview-stacked__cal-day preview-stacked__cal-day--empty"></span>
+                          } @else {
+                            <button class="preview-stacked__cal-day"
+                                    type="button"
+                                    [class.is-today]="cell.isToday"
+                                    [class.is-selected]="cell.isSelected"
+                                    [class.is-disabled]="cell.isDisabled"
+                                    [disabled]="cell.isDisabled"
+                                    (click)="stackedSelectDay(cell.day!)">
+                              {{ cell.day }}
+                            </button>
+                          }
+                        }
+                      </div>
+                    </div>
+                  }
+                  @case ('time') {
+                    <div class="preview-stacked__times">
+                      @for (t of timeSlots(); track t) {
+                        <button class="preview-stacked__time"
+                                type="button"
+                                [class.is-selected]="validTime() === t"
+                                (click)="stackedSelectTime(t)">
+                          {{ t }}
+                        </button>
+                      }
+                    </div>
+                  }
+                  @case ('seats') {
+                    <div class="preview-stacked__seats">
+                      @for (s of seatOptions; track s.count) {
+                        <button class="preview-stacked__seat"
+                                type="button"
+                                [class.is-selected]="people() === s.count"
+                                (click)="stackedSelectSeats(s.count)">
+                          <span class="preview-stacked__seat-num">{{ s.count }}</span>
+                          <span class="preview-stacked__seat-label">{{ s.count === 1 ? 'Gast' : (s.count >= 8 ? 'Gäste +' : 'Gäste') }}</span>
+                        </button>
+                      }
+                    </div>
+                  }
+                }
+              </div>
+            }
+            </div>
+
+            @if (tischartenAktiv() && tischartenModus() === 'liste' && availableTischarten().length > 0) {
+              <div class="tischart-picker">
+                <div class="tischart-picker__label">Tischart</div>
+                <div class="tischart-picker__chips">
+                  @for (t of availableTischarten(); track t.key) {
+                    <button type="button"
+                            class="tischart-chip"
+                            [class.is-selected]="selectedTischart() === t.key"
+                            (click)="selectedTischart.set(t.key)">
+                      <span>{{ t.icon }}</span> {{ t.label }}
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+
+            @if (speisekarte()) {
+              <button type="button" class="widget-menu-btn widget-menu-btn--stacked" (click)="toggleMenu()">
+                🍽 Speisekarte ansehen
+              </button>
+            }
+
+            @if (showMaxPersonenWarning()) {
+              <div class="widget-max-warning">
+                <p class="widget-max-warning__text">{{ maxPersonenText() }}</p>
+                @if (maxPersonenPhone()) {
+                  <a class="widget-max-warning__link" [href]="'tel:' + maxPersonenPhone()">
+                    📞 {{ maxPersonenPhone() }}
+                  </a>
+                }
+                @if (maxPersonenEmail()) {
+                  <a class="widget-max-warning__link" [href]="'mailto:' + maxPersonenEmail()">
+                    ✉ {{ maxPersonenEmail() }}
+                  </a>
+                }
+              </div>
+            } @else {
+              <button class="preview-stacked__cta" type="button" (click)="stackedNextStep()">
+                <span>{{ buttonLabel() || 'Reservieren' }}</span>
+                <span>→</span>
+              </button>
+            }
+
+          } @else {
+            <!-- Step 2 -->
+            <p class="preview-stacked__summary">
+              {{ people() }}&nbsp;{{ people() === 1 ? 'Gast' : 'Gäste' }}
+              · {{ selectedDateLabel() }}
+              · {{ validTime() }}&nbsp;Uhr
+            </p>
+
+            @if (raumauswahl() && filteredVenues().length > 1) {
+              <div class="preview-stacked__form">
+                <div class="preview-stacked__field">
+                  <label class="preview-stacked__field-label">Bereich</label>
+                  <div class="venue-chip-row">
+                    @for (v of filteredVenues(); track v.id) {
+                      <button type="button"
+                              class="venue-chip"
+                              [class.is-active]="selectedVenue()?.id === v.id"
+                              (click)="selectVenue(v)">{{ v.name }}</button>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+
+            <div class="preview-stacked__form">
+              <div class="preview-stacked__row">
+                <div class="preview-stacked__field">
+                  <label class="preview-stacked__field-label" for="st-name">Name</label>
+                  <input id="st-name" type="text" class="preview-stacked__field-input preview-stacked__field-input--real"
+                         [ngModel]="guestName()" (ngModelChange)="guestName.set($event)"
+                         placeholder="Vor- und Nachname" autocomplete="name" name="stName">
+                </div>
+                <div class="preview-stacked__field">
+                  <label class="preview-stacked__field-label" for="st-email">E-Mail</label>
+                  <input id="st-email" type="email" class="preview-stacked__field-input preview-stacked__field-input--real"
+                         [ngModel]="guestEmail()" (ngModelChange)="guestEmail.set($event)"
+                         placeholder="name@beispiel.de" autocomplete="email" name="stEmail">
+                </div>
+              </div>
+
+              <div class="preview-stacked__field">
+                <label class="preview-stacked__field-label" for="st-phone">
+                  Telefon
+                  @if (isRequired('phone')) { <span class="field-required">*</span> }
+                  @else { <span class="preview-stacked__optional">(optional)</span> }
+                </label>
+                <input id="st-phone" type="tel" class="preview-stacked__field-input preview-stacked__field-input--real"
+                       [ngModel]="guestPhone()" (ngModelChange)="guestPhone.set($event)"
+                       placeholder="+49 …" autocomplete="tel" name="stPhone">
+              </div>
+
+              @if (kinderStuehleAktiv()) {
+                <div class="preview-stacked__field">
+                  <label class="preview-stacked__field-label">Kinderstühle</label>
+                  <div class="kinder-stepper">
+                    <button type="button" class="kinder-stepper__btn" (click)="decKinderStuehle()">−</button>
+                    <span class="kinder-stepper__val">{{ kinderStuehle() }}</span>
+                    <button type="button" class="kinder-stepper__btn" (click)="incKinderStuehle()">+</button>
+                    <span class="kinder-stepper__hint">max. {{ kinderStuehleOnline() }}</span>
+                  </div>
+                </div>
+              }
+              @if (rollstuhlAktiv()) {
+                <label class="extra-checkbox">
+                  <input type="checkbox" [checked]="rollstuhl()" (change)="rollstuhl.set(!rollstuhl())">
+                  <span class="extra-checkbox__box"></span>
+                  <span class="extra-checkbox__label">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <circle cx="13.5" cy="3" r="1.8" fill="currentColor" stroke="none"/>
+                      <line x1="7" y1="5.5" x2="7" y2="10"/>
+                      <line x1="7" y1="10" x2="13" y2="10"/>
+                      <path d="M13.5,4.8 L11,10"/>
+                      <line x1="13" y1="10" x2="13" y2="14"/>
+                      <line x1="10" y1="14" x2="16" y2="14"/>
+                      <path d="M11,7.5 Q8.5,11.5 8,16.2"/>
+                      <circle cx="8" cy="17" r="2.8"/>
+                      <circle cx="16.5" cy="15" r="1.2"/>
+                    </svg>
+                    Rollstuhlgerechter Platz gewünscht
+                  </span>
+                </label>
+              }
+              @if (hundAktiv()) {
+                <label class="extra-checkbox">
+                  <input type="checkbox" [checked]="hund()" (change)="hund.set(!hund())">
+                  <span class="extra-checkbox__box"></span>
+                  <span class="extra-checkbox__label">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <path d="M4,12 Q4,9 6,9 L13,9 Q15.5,9 15.5,11.5 Q15.5,14 13,14 L6,14 Q4,14 4,12 Z"/>
+                      <circle cx="16" cy="7.5" r="2.8"/>
+                      <path d="M14,5.2 Q15,2.5 17.5,3.5 Q17.5,6.2 15.2,5.8"/>
+                      <path d="M4,12 Q1.5,9.5 2,6.5"/>
+                      <line x1="12" y1="14" x2="12" y2="18"/>
+                      <line x1="10.5" y1="14" x2="10.5" y2="18"/>
+                      <line x1="7" y1="14" x2="7" y2="18"/>
+                      <line x1="5.5" y1="14" x2="5.5" y2="18"/>
+                    </svg>
+                    Hund dabei
+                  </span>
+                </label>
+              }
+              @if (allergeneAktiv() && verfuegbareAllergene().length > 0) {
+                <div class="allergen-picker">
+                  <span class="allergen-picker__label">Allergien / Unverträglichkeiten</span>
+                  <div class="allergen-picker__chips">
+                    @for (a of verfuegbareAllergene(); track a.key) {
+                      <button type="button" class="allergen-chip"
+                              [class.is-selected]="isAllergenSelected(a.key)"
+                              (click)="toggleAllergen(a.key)">{{ a.label }}</button>
+                    }
+                  </div>
+                </div>
+              }
+
+              <div class="preview-stacked__field">
+                <label class="preview-stacked__field-label" for="st-notes">
+                  Anmerkungen
+                  @if (isRequired('notes')) { <span class="field-required">*</span> }
+                  @else { <span class="preview-stacked__optional">(optional)</span> }
+                </label>
+                <textarea id="st-notes" class="preview-stacked__field-input preview-stacked__field-input--real preview-stacked__field-input--area"
+                          [ngModel]="notes()" (ngModelChange)="notes.set($event)"
+                          placeholder="Besonderheiten, Allergien …"
+                          name="stNotes" rows="2"></textarea>
+              </div>
+            </div>
+
+            @if (state() === 'error') {
+              <div class="widget-alert" style="margin: 0 20px;">{{ errorMessage() }}</div>
+            }
+
+            <label class="preview-stacked__consent"
+                   [class.is-checked]="stackedConsent()"
+                   (click)="stackedToggleConsent(); $event.preventDefault()">
+              <input type="checkbox" class="preview-stacked__consent-input"
+                     [checked]="stackedConsent()">
+              <span class="preview-stacked__consent-box" aria-hidden="true">
+                @if (stackedConsent()) { <span class="check-icon">✓</span> }
+              </span>
+              <span class="preview-stacked__consent-text">
+                Ich willige ein, dass meine Daten zur Bearbeitung der Reservierung gespeichert werden.
+              </span>
+            </label>
+
+            <div class="preview-stacked__nav">
+              <button class="preview-stacked__back" type="button" (click)="stackedPrevStep()">←</button>
+              <button class="preview-stacked__cta preview-stacked__cta--submit"
+                      type="button"
+                      [class.is-disabled]="!canSubmit()"
+                      [disabled]="!canSubmit()"
+                      (click)="weiter()">
+                <span>@if (state() === 'submitting') { Wird gesendet … } @else { Reservierung absenden }</span>
+                <span>✓</span>
+              </button>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- ═══════════════════════════════════════════════
+           PLANNER LAYOUT
+      ════════════════════════════════════════════════ -->
+      @case ('planner') {
+        <div class="preview-planner-wrapper">
+          <header class="preview__header">
+            <div class="preview__header-text">
+              <h4 class="preview__title">{{ headingTitle() || 'Tisch reservieren' }}</h4>
+              @if (showSubtitle() && headingSubtitle()) {
+                <p class="preview__subtitle">{{ headingSubtitle() }}</p>
+              }
+            </div>
+            @if (speisekarte()) {
+              <button type="button" class="widget-menu-btn widget-menu-btn--planner" (click)="toggleMenu()">
+                🍽 Speisekarte
+              </button>
+            }
+          </header>
+
+          <div class="preview-planner" [attr.data-step]="plannerStep()">
+
+            <!-- Step indicator -->
+            <div class="preview-planner__steps">
+              <button type="button"
+                      class="preview-planner__step"
+                      [class.is-active]="plannerStep() === 1"
+                      [class.is-done]="plannerStep() > 1"
+                      (click)="setPlannerStep(1)">
+                <span class="preview-planner__step-num">
+                  @if (plannerStep() > 1) { ✓ } @else { 1 }
+                </span>
+                <span class="preview-planner__step-label">Datum</span>
+              </button>
+
+              <span class="preview-planner__step-bar" [class.is-done]="plannerStep() > 1"></span>
+
+              <button type="button"
+                      class="preview-planner__step"
+                      [class.is-active]="plannerStep() === 2"
+                      [class.is-done]="plannerStep() > 2"
+                      (click)="setPlannerStep(2)">
+                <span class="preview-planner__step-num">
+                  @if (plannerStep() > 2) { ✓ } @else { 2 }
+                </span>
+                <span class="preview-planner__step-label">Uhrzeit</span>
+              </button>
+
+              <span class="preview-planner__step-bar" [class.is-done]="plannerStep() > 2"></span>
+
+              <button type="button"
+                      class="preview-planner__step"
+                      [class.is-active]="plannerStep() === 3"
+                      [class.is-done]="plannerStep() > 3"
+                      (click)="setPlannerStep(3)">
+                <span class="preview-planner__step-num">
+                  @if (plannerStep() > 3) { ✓ } @else { 3 }
+                </span>
+                <span class="preview-planner__step-label">Personen</span>
+              </button>
+
+              <span class="preview-planner__step-bar" [class.is-done]="plannerStep() > 3"></span>
+
+              <button type="button"
+                      class="preview-planner__step"
+                      [class.is-active]="plannerStep() === 4"
+                      (click)="setPlannerStep(4)">
+                <span class="preview-planner__step-num">4</span>
+                <span class="preview-planner__step-label">Daten</span>
+              </button>
+            </div>
+
+            <!-- Panels -->
+            <div class="preview-planner__panels">
+
+              <!-- Panel 1: Date -->
+              <section class="preview-planner__panel" [class.is-active]="plannerStep() === 1">
+                <div class="preview-planner__panel-head">
+                  <span class="preview-planner__panel-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <rect x="2" y="3.5" width="16" height="14" rx="2.5"/>
+                      <line x1="2" y1="8.5" x2="18" y2="8.5"/>
+                      <line x1="6.5" y1="1" x2="6.5" y2="5.5"/>
+                      <line x1="13.5" y1="1" x2="13.5" y2="5.5"/>
+                      <rect x="5" y="11.5" width="2.5" height="2.5" rx="0.5" fill="currentColor" stroke="none"/>
+                      <rect x="8.75" y="11.5" width="2.5" height="2.5" rx="0.5" fill="currentColor" stroke="none"/>
+                    </svg>
+                  </span>
+                  <span class="preview-planner__panel-title">Datum</span>
+                </div>
+
+                <div class="preview-planner__cal">
+                  <div class="preview-planner__cal-bar">
+                    <button class="preview-planner__cal-nav" type="button" (click)="prevMonth()">‹</button>
+                    <span class="preview-planner__cal-month">{{ calendarMonthLabel() }}</span>
+                    <button class="preview-planner__cal-nav" type="button" (click)="nextMonth()">›</button>
+                  </div>
+
+                  <div class="preview-planner__cal-grid preview-planner__cal-grid--weekdays">
+                    @for (wd of weekdays; track wd) {
+                      <span class="preview-planner__cal-weekday">{{ wd }}</span>
+                    }
+                  </div>
+
+                  <div class="preview-planner__cal-grid">
+                    @for (cell of calendarCells(); track $index) {
+                      @if (cell.day === null) {
+                        <span class="preview-planner__cal-day preview-planner__cal-day--empty"></span>
+                      } @else {
+                        <button class="preview-planner__cal-day"
+                                type="button"
+                                [class.is-today]="cell.isToday"
+                                [class.is-selected]="cell.isSelected"
+                                [class.is-disabled]="cell.isDisabled"
+                                [disabled]="cell.isDisabled"
+                                (click)="selectPlannerDay(cell.day!)">
+                          {{ cell.day }}
+                        </button>
+                      }
+                    }
+                  </div>
+                </div>
+              </section>
+
+              <!-- Panel 2: Time (dial) -->
+              <section class="preview-planner__panel" [class.is-active]="plannerStep() === 2">
+                <div class="preview-planner__panel-head">
+                  <span class="preview-planner__panel-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" width="16" height="16">
+                      <circle cx="10" cy="10" r="8"/>
+                      <polyline points="10,4.5 10,10 13.5,13"/>
+                    </svg>
+                  </span>
+                  <span class="preview-planner__panel-title">Uhrzeit</span>
+                </div>
+
+                <div class="preview-planner__dial">
+                  <svg class="preview-planner__dial-svg"
+                       viewBox="0 0 140 140"
+                       aria-hidden="true">
+                    <circle cx="70" cy="70" r="62" class="preview-planner__dial-ring"/>
+
+                    @if (plannerDialPhase() === 'hour') {
+                      @for (h of dialPhaseHourDots(); track h.hour) {
+                        <circle [attr.cx]="h.x" [attr.cy]="h.y"
+                                [attr.r]="h.hour === +validTime().split(':')[0] ? 7 : h.isAvailable ? 6 : 5"
+                                class="preview-planner__dial-phase-dot"
+                                [class.is-available]="h.isAvailable"
+                                [class.is-selected]="h.hour === +validTime().split(':')[0]"/>
+                        <text [attr.x]="h.x" [attr.y]="h.y"
+                              class="preview-planner__dial-phase-label"
+                              [class.is-available]="h.isAvailable"
+                              [class.is-selected]="h.hour === +validTime().split(':')[0]"
+                              text-anchor="middle" dominant-baseline="central">{{ h.label }}</text>
+                      }
+                    } @else {
+                      @for (m of dialPhaseMinuteDots(); track m.minute) {
+                        <circle [attr.cx]="m.x" [attr.cy]="m.y" r="9"
+                                class="preview-planner__dial-phase-dot is-available"
+                                [class.is-selected]="m.minute === +validTime().split(':')[1]"/>
+                        <text [attr.x]="m.x" [attr.y]="m.y"
+                              class="preview-planner__dial-phase-label is-available"
+                              [class.is-selected]="m.minute === +validTime().split(':')[1]"
+                              text-anchor="middle" dominant-baseline="central">{{ m.label }}</text>
+                      }
+                    }
+
+                    <g class="preview-planner__dial-needle"
+                       [attr.transform]="'rotate(' + dialPhaseNeedleAngle() + ' 70 70)'">
+                      <line x1="70" y1="70" x2="70" [attr.y2]="dialPhaseNeedleEndY()"
+                            class="preview-planner__dial-needle-line"/>
+                      <circle cx="70" [attr.cy]="dialPhaseNeedleEndY()" r="6"
+                              class="preview-planner__dial-needle-tip"/>
+                    </g>
+
+                    <circle cx="70" cy="70" r="18" class="preview-planner__dial-hub"/>
+                  </svg>
+
+                  @if (plannerDialPhase() === 'hour') {
+                    @for (h of dialPhaseHourDots(); track h.hour) {
+                      <button type="button"
+                              class="preview-planner__dial-slot"
+                              [disabled]="!h.isAvailable"
+                              [style.left.%]="(h.x / 140) * 100"
+                              [style.top.%]="(h.y / 140) * 100"
+                              (click)="selectPlannerHour(h.hour)"
+                              [attr.aria-label]="h.label + ' Uhr'"></button>
+                    }
+                  } @else {
+                    @for (m of dialPhaseMinuteDots(); track m.minute) {
+                      <button type="button"
+                              class="preview-planner__dial-slot"
+                              [class.is-selected]="m.minute === +validTime().split(':')[1]"
+                              [style.left.%]="(m.x / 140) * 100"
+                              [style.top.%]="(m.y / 140) * 100"
+                              (click)="selectPlannerMinute(m.minute)"
+                              [attr.aria-label]="m.label + ' Minuten'"></button>
+                    }
+                  }
+
+                  <div class="preview-planner__dial-readout" aria-hidden="true">
+                    <span class="preview-planner__dial-time">{{ validTime() }}</span>
+                    <span class="preview-planner__dial-meta">
+                      {{ plannerDialPhase() === 'hour' ? 'Stunde' : 'Minute' }}
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Panel 3: Seats -->
+              <section class="preview-planner__panel" [class.is-active]="plannerStep() === 3">
+                <div class="preview-planner__panel-head">
+                  <span class="preview-planner__panel-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <circle cx="7.5" cy="6" r="2.5"/>
+                      <path d="M1 18c0-3.59 2.91-6.5 6.5-6.5"/>
+                      <circle cx="13" cy="5.5" r="2.5"/>
+                      <path d="M7.5 18c0-3.314 2.462-6 5.5-6s5.5 2.686 5.5 6"/>
+                    </svg>
+                  </span>
+                  <span class="preview-planner__panel-title">Personen</span>
+                </div>
+
+                <div class="preview-planner__chips preview-planner__chips--seats">
+                  @for (s of seatOptions; track s.count) {
+                    <button class="preview-planner__chip preview-planner__chip--seat"
+                            type="button"
+                            [class.is-selected]="people() === s.count"
+                            (click)="selectPlannerSeats(s.count)">
+                      <span class="preview-planner__chip-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                          <circle cx="10" cy="6" r="3"/>
+                          <path d="M3 18c0-3.866 3.134-7 7-7s7 3.134 7 7"/>
+                        </svg>
+                      </span>
+                      <span class="preview-planner__chip-label">{{ s.label }}</span>
+                    </button>
+                  }
+                </div>
+              </section>
+
+              <!-- Panel 4: Data -->
+              <section class="preview-planner__panel preview-planner__panel--data"
+                       [class.is-active]="plannerStep() === 4">
+                <div class="preview-planner__panel-head">
+                  <span class="preview-planner__panel-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <circle cx="10" cy="6" r="3"/>
+                      <path d="M3 18c0-3.866 3.134-7 7-7s7 3.134 7 7"/>
+                    </svg>
+                  </span>
+                  <span class="preview-planner__panel-title">Ihre Daten</span>
+                </div>
+
+                <div class="preview-planner__summary">
+                  <span class="preview-planner__summary-line">
+                    <svg class="summary-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><rect x="2" y="3.5" width="16" height="14" rx="2.5"/><line x1="2" y1="8.5" x2="18" y2="8.5"/><line x1="6.5" y1="1" x2="6.5" y2="5.5"/><line x1="13.5" y1="1" x2="13.5" y2="5.5"/><rect x="5" y="11.5" width="2.5" height="2.5" rx="0.5" fill="currentColor" stroke="none"/><rect x="8.75" y="11.5" width="2.5" height="2.5" rx="0.5" fill="currentColor" stroke="none"/></svg>
+                    {{ selectedDay() }}.
+                    @if (calendarMonth() === 0) { Januar }
+                    @else if (calendarMonth() === 1) { Februar }
+                    @else if (calendarMonth() === 2) { März }
+                    @else if (calendarMonth() === 3) { April }
+                    @else if (calendarMonth() === 4) { Mai }
+                    @else if (calendarMonth() === 5) { Juni }
+                    @else if (calendarMonth() === 6) { Juli }
+                    @else if (calendarMonth() === 7) { August }
+                    @else if (calendarMonth() === 8) { September }
+                    @else if (calendarMonth() === 9) { Oktober }
+                    @else if (calendarMonth() === 10) { November }
+                    @else { Dezember }
+                  </span>
+                  <span class="preview-planner__summary-divider">·</span>
+                  <span class="preview-planner__summary-line">
+                    <svg class="summary-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" width="13" height="13"><circle cx="10" cy="10" r="8"/><polyline points="10,4.5 10,10 13.5,13"/></svg>
+                    {{ validTime() }}
+                  </span>
+                  <span class="preview-planner__summary-divider">·</span>
+                  <span class="preview-planner__summary-line">
+                    <svg class="summary-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="13" height="13">
+                      <circle cx="7.5" cy="6" r="2.5"/>
+                      <path d="M1 18c0-3.59 2.91-6.5 6.5-6.5"/>
+                      <circle cx="13" cy="5.5" r="2.5"/>
+                      <path d="M7.5 18c0-3.314 2.462-6 5.5-6s5.5 2.686 5.5 6"/>
+                    </svg>
+                    @if (people() === 1) { 1 Gast } @else { {{ people() }} Gäste }
+                  </span>
+                </div>
+
+                @if (raumauswahl() && filteredVenues().length > 1) {
+                  <div class="preview-planner__form-group">
+                    <label class="preview-planner__form-label">Bereich</label>
+                    <div class="venue-chip-row">
+                      @for (v of filteredVenues(); track v.id) {
+                        <button type="button"
+                                class="venue-chip"
+                                [class.is-active]="selectedVenue()?.id === v.id"
+                                (click)="selectVenue(v)">{{ v.name }}</button>
+                      }
+                    </div>
+                  </div>
+                }
+
+                <div class="preview-planner__form">
+                  <div class="preview-planner__form-row">
+                    <div class="preview-planner__form-group">
+                      <label class="preview-planner__form-label" for="pl-name">Name</label>
+                      <input id="pl-name" type="text" class="preview-planner__form-input preview-planner__form-input--real"
+                             [ngModel]="guestName()" (ngModelChange)="guestName.set($event)"
+                             placeholder="Vor- und Nachname" autocomplete="name" name="plName">
+                    </div>
+                    <div class="preview-planner__form-group">
+                      <label class="preview-planner__form-label" for="pl-email">E-Mail</label>
+                      <input id="pl-email" type="email" class="preview-planner__form-input preview-planner__form-input--real"
+                             [ngModel]="guestEmail()" (ngModelChange)="guestEmail.set($event)"
+                             placeholder="name@beispiel.de" autocomplete="email" name="plEmail">
+                    </div>
+                  </div>
+
+                  <div class="preview-planner__form-row">
+                    <div class="preview-planner__form-group">
+                      <label class="preview-planner__form-label" for="pl-phone">
+                        Telefon
+                        @if (isRequired('phone')) { <span class="field-required">*</span> }
+                        @else { <span class="preview-planner__form-optional">(optional)</span> }
+                      </label>
+                      <input id="pl-phone" type="tel" class="preview-planner__form-input preview-planner__form-input--real"
+                             [ngModel]="guestPhone()" (ngModelChange)="guestPhone.set($event)"
+                             placeholder="+49 …" autocomplete="tel" name="plPhone">
+                    </div>
+                    <div class="preview-planner__form-group">
+                      <label class="preview-planner__form-label" for="pl-notes">
+                        Notizen
+                        @if (isRequired('notes')) { <span class="field-required">*</span> }
+                        @else { <span class="preview-planner__form-optional">(optional)</span> }
+                      </label>
+                      <textarea id="pl-notes" class="preview-planner__form-input preview-planner__form-input--real preview-planner__form-input--area"
+                                [ngModel]="notes()" (ngModelChange)="notes.set($event)"
+                                placeholder="Allergien, Kinderstuhl …"
+                                name="plNotes" rows="2"></textarea>
+                    </div>
+                  </div>
+
+                  @if (tischartenAktiv() && tischartenModus() === 'liste' && availableTischarten().length > 0) {
+                    <div class="tischart-picker tischart-picker--planner">
+                      <div class="tischart-picker__label">Tischart</div>
+                      <div class="tischart-picker__chips">
+                        @for (t of availableTischarten(); track t.key) {
+                          <button type="button"
+                                  class="tischart-chip"
+                                  [class.is-active]="selectedTischart() === t.key"
+                                  (click)="selectedTischart.set(t.key)">
+                            <span>{{ t.icon }}</span> {{ t.label }}
+                          </button>
+                        }
+                      </div>
+                    </div>
+                  }
+
+                  @if (tischartenAktiv() && tischartenModus() === 'plan' && selectedTableId() !== null) {
+                    <div class="plan-selected-badge">
+                      <span class="plan-selected-badge__icon">✓</span>
+                      <span class="plan-selected-badge__text">Tisch #{{ selectedTableId() }} ausgewählt</span>
+                      <button type="button" class="plan-selected-badge__change" (click)="tischplanOverlayOpen.set(true)">Ändern</button>
+                    </div>
+                  }
+
+                  @if (kinderStuehleAktiv()) {
+                    <div class="preview-planner__form-group">
+                      <label class="preview-planner__form-label">Kinderstühle</label>
+                      <div class="kinder-stepper">
+                        <button type="button" class="kinder-stepper__btn" (click)="decKinderStuehle()">−</button>
+                        <span class="kinder-stepper__val">{{ kinderStuehle() }}</span>
+                        <button type="button" class="kinder-stepper__btn" (click)="incKinderStuehle()">+</button>
+                        <span class="kinder-stepper__hint">max. {{ kinderStuehleOnline() }}</span>
+                      </div>
+                    </div>
+                  }
+                  @if (rollstuhlAktiv()) {
+                    <label class="extra-checkbox">
+                      <input type="checkbox" [checked]="rollstuhl()" (change)="rollstuhl.set(!rollstuhl())">
+                      <span class="extra-checkbox__box"></span>
+                      <span class="extra-checkbox__label">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <circle cx="13.5" cy="3" r="1.8" fill="currentColor" stroke="none"/>
+                      <line x1="7" y1="5.5" x2="7" y2="10"/>
+                      <line x1="7" y1="10" x2="13" y2="10"/>
+                      <path d="M13.5,4.8 L11,10"/>
+                      <line x1="13" y1="10" x2="13" y2="14"/>
+                      <line x1="10" y1="14" x2="16" y2="14"/>
+                      <path d="M11,7.5 Q8.5,11.5 8,16.2"/>
+                      <circle cx="8" cy="17" r="2.8"/>
+                      <circle cx="16.5" cy="15" r="1.2"/>
+                    </svg>
+                    Rollstuhlgerechter Platz gewünscht
+                  </span>
+                    </label>
+                  }
+                  @if (hundAktiv()) {
+                    <label class="extra-checkbox">
+                      <input type="checkbox" [checked]="hund()" (change)="hund.set(!hund())">
+                      <span class="extra-checkbox__box"></span>
+                      <span class="extra-checkbox__label">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <path d="M4,12 Q4,9 6,9 L13,9 Q15.5,9 15.5,11.5 Q15.5,14 13,14 L6,14 Q4,14 4,12 Z"/>
+                      <circle cx="16" cy="7.5" r="2.8"/>
+                      <path d="M14,5.2 Q15,2.5 17.5,3.5 Q17.5,6.2 15.2,5.8"/>
+                      <path d="M4,12 Q1.5,9.5 2,6.5"/>
+                      <line x1="12" y1="14" x2="12" y2="18"/>
+                      <line x1="10.5" y1="14" x2="10.5" y2="18"/>
+                      <line x1="7" y1="14" x2="7" y2="18"/>
+                      <line x1="5.5" y1="14" x2="5.5" y2="18"/>
+                    </svg>
+                    Hund dabei
+                  </span>
+                    </label>
+                  }
+                  @if (allergeneAktiv() && verfuegbareAllergene().length > 0) {
+                    <div class="allergen-picker">
+                      <span class="allergen-picker__label">Allergien / Unverträglichkeiten</span>
+                      <div class="allergen-picker__chips">
+                        @for (a of verfuegbareAllergene(); track a.key) {
+                          <button type="button" class="allergen-chip"
+                                  [class.is-selected]="isAllergenSelected(a.key)"
+                                  (click)="toggleAllergen(a.key)">{{ a.label }}</button>
+                        }
+                      </div>
+                    </div>
+                  }
+
+                  @if (state() === 'error') {
+                    <div class="widget-alert">{{ errorMessage() }}</div>
+                  }
+
+                  <label class="preview-planner__consent" [class.is-checked]="plannerConsent()">
+                    <input type="checkbox" class="preview-planner__consent-input"
+                           [checked]="plannerConsent()" (change)="plannerToggleConsent()">
+                    <span class="preview-planner__consent-box" aria-hidden="true">
+                      @if (plannerConsent()) { <span class="check-icon">✓</span> }
+                    </span>
+                    <span class="preview-planner__consent-text">
+                      Ich willige ein, dass meine Daten zur Bearbeitung der Reservierung gespeichert werden.
+                    </span>
+                  </label>
+                </div>
+              </section>
+            </div>
+
+            <!-- Footer nav -->
+            <div class="preview-planner__nav">
+              <button type="button" class="preview-planner__back" (click)="plannerPrev()">
+                ‹ Zurück
+              </button>
+
+              @if (showMaxPersonenWarning() && plannerStep() >= 3) {
+                <div class="widget-max-warning widget-max-warning--inline">
+                  <p class="widget-max-warning__text">{{ maxPersonenText() }}</p>
+                  @if (maxPersonenPhone()) {
+                    <a class="widget-max-warning__link" [href]="'tel:' + maxPersonenPhone()">
+                      📞 {{ maxPersonenPhone() }}
+                    </a>
+                  }
+                  @if (maxPersonenEmail()) {
+                    <a class="widget-max-warning__link" [href]="'mailto:' + maxPersonenEmail()">
+                      ✉ {{ maxPersonenEmail() }}
+                    </a>
+                  }
+                </div>
+              } @else if (plannerStep() < 4) {
+                <button class="preview__cta preview-planner__cta"
+                        type="button"
+                        (click)="plannerNext()">
+                  Weiter
+                  <span class="preview-planner__cta-icon">›</span>
+                </button>
+              } @else {
+                <button class="preview__cta preview-planner__cta preview-planner__cta--submit"
+                        type="button"
+                        [class.is-disabled]="!canSubmit()"
+                        [disabled]="!canSubmit()"
+                        (click)="weiter()">
+                  @if (state() === 'submitting') { Wird gesendet … }
+                  @else { {{ buttonLabel() || 'Reservierung absenden' }} }
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Default fallback -->
+      @default {
+        <div class="widget-alert">Unbekanntes Layout: {{ layout() }}</div>
+      }
+    }
+
+    <!-- ─── Branding ───────────────────────────────────────────────────────── -->
+    <div class="saly-credit">created by <span class="saly-credit__name">saly</span></div>
+
+    <!-- ─── Tisch-Wahl Zwischenschritt (Tablet+, Plan-Modus) ──────────────── -->
+    @if (tischwahlActive()) {
+      <div class="tischwahl-overlay">
+        <div class="tischwahl-overlay__box">
+          <button type="button" class="tischwahl-overlay__close" (click)="tischwahlActive.set(false)" aria-label="Schließen">✕</button>
+          <div class="tischwahl-overlay__icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="36" height="36">
+              <rect x="3" y="11" width="18" height="2" rx="1"/>
+              <rect x="6" y="13" width="2" height="7" rx="1"/>
+              <rect x="16" y="13" width="2" height="7" rx="1"/>
+              <rect x="2" y="9" width="20" height="3" rx="1.2"/>
+            </svg>
+          </div>
+          <h3 class="tischwahl-overlay__title">Tisch auswählen</h3>
+          <p class="tischwahl-overlay__subtitle">
+            Möchtest du deinen Tisch selbst aussuchen oder soll automatisch ein passender Tisch für dich reserviert werden?
+          </p>
+          <div class="tischwahl-overlay__actions">
+            <button type="button" class="tischwahl-overlay__btn tischwahl-overlay__btn--auto"
+                    (click)="tischwahlAutoAssign()">
+              <span class="tischwahl-overlay__btn-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                  <path d="M13 3a9 9 0 1 0 5.66 15.9l-1.42-1.42A7 7 0 1 1 13 5V3z"/>
+                  <path d="M13 3v5l3-3-3-2z"/>
+                </svg>
+              </span>
+              <span class="tischwahl-overlay__btn-body">
+                <span class="tischwahl-overlay__btn-title">Automatisch zuweisen</span>
+                <span class="tischwahl-overlay__btn-sub">Wir wählen den besten Tisch für dich</span>
+              </span>
+            </button>
+            <button type="button" class="tischwahl-overlay__btn tischwahl-overlay__btn--self"
+                    (click)="tischwahlSelbst()">
+              <span class="tischwahl-overlay__btn-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                     width="22" height="22">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <circle cx="8.5" cy="9.5" r="1.5"/>
+                  <circle cx="15.5" cy="9.5" r="1.5"/>
+                  <circle cx="8.5" cy="15.5" r="1.5"/>
+                  <circle cx="15.5" cy="15.5" r="1.5"/>
+                </svg>
+              </span>
+              <span class="tischwahl-overlay__btn-body">
+                <span class="tischwahl-overlay__btn-title">Tisch selbst wählen</span>
+                <span class="tischwahl-overlay__btn-sub">Wähle deinen Lieblingstisch im Grundriss</span>
+              </span>
+              <span class="tischwahl-overlay__btn-arrow">›</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ─── Tischplan Vollbild-Overlay (Tablet+) ──────────────────────────── -->
+    @if (tischplanOverlayOpen()) {
+      <div class="tischplan-overlay">
+
+        <!-- Titelzeile oben: Zurück · Titel · Badge · Bestätigen -->
+        <div class="tischplan-overlay__topbar">
+          <button type="button" class="tischplan-overlay__back" (click)="tischplanOverlayBack()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 width="15" height="15">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            Zurück
+          </button>
+
+          <span class="tischplan-overlay__title">Tisch wählen</span>
+
+          @if (hiddenTableCount() > 0) {
+            <span class="tischplan-overlay__hint-filter">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
+                <path d="M3 4h18l-7 8.5V20l-4-2v-5.5L3 4z"/>
+              </svg>
+              {{ hiddenTableCount() }} {{ hiddenTableCount() === 1 ? 'Tisch' : 'Tische' }} ausgegraut
+            </span>
+          }
+
+          <button type="button" class="tischplan-overlay__confirm"
+                  [class.is-active]="selectedTableId() !== null"
+                  [disabled]="selectedTableId() === null"
+                  (click)="tischplanOverlayConfirm()">
+            @if (selectedTableId() !== null) {
+              Tisch #{{ selectedTableId() }} bestätigen
+            } @else {
+              Tisch antippen
+            }
+          </button>
+        </div>
+
+        <!-- Raumauswahl im Overlay -->
+        @if (filteredVenues().length > 1) {
+          <div class="tischplan-overlay__venue-bar">
+            @for (v of filteredVenues(); track v.id) {
+              <button type="button"
+                      class="tischplan-overlay__venue-chip"
+                      [class.is-active]="selectedVenue()?.id === v.id"
+                      (click)="selectVenueInPlan(v)">
+                {{ v.name }}
+              </button>
+            }
+          </div>
+        }
+
+        <!-- Tischplan -->
+        <div class="tischplan-overlay__canvas">
+          <svg class="tischplan-overlay__svg"
+               [attr.viewBox]="planViewBox()"
+               xmlns="http://www.w3.org/2000/svg">
+
+            <!-- ── Wände ─────────────────────────────────────────────────── -->
+            @for (w of venueWalls(); track w.id) {
+              <rect
+                [attr.x]="w.x - w.length / 2"
+                [attr.y]="w.y - 6"
+                [attr.width]="w.length"
+                height="12"
+                rx="4"
+                class="plan-wall"
+                [attr.transform]="'rotate(' + w.rotation + ',' + w.x + ',' + w.y + ')'" />
+            }
+
+            <!-- ── Dekor-Elemente ────────────────────────────────────────── -->
+            @for (d of venueDecors(); track d.id) {
+              @let isWide    = d.type === 'bar' || d.type === 'stage' || d.type === 'sofa';
+              @let isWindow  = d.type === 'window';
+              @let baseW     = (isWide || isWindow) ? 140 : 70;
+              @let baseH     = isWindow ? 32 : 70;
+              @let dw        = baseW * d.scale;
+              @let dh        = baseH * d.scale;
+              @let cx        = d.x + dw / 2;
+              @let cy        = d.y + dh / 2;
+              <g [attr.transform]="'rotate(' + d.rotation + ',' + cx + ',' + cy + ') translate(' + d.x + ',' + d.y + ') scale(' + d.scale + ')'"
+                 class="plan-decor">
+                @switch (d.type) {
+                  @case ('plant') {
+                    <path d="M 22 50 L 26 64 L 44 64 L 48 50 Z" class="plan-decor__base"/>
+                    <line x1="22" y1="52" x2="48" y2="52" class="plan-decor__line"/>
+                    <path d="M 35 50 Q 22 38, 18 22 Q 30 28, 35 42 Z" class="plan-decor__plant-leaf"/>
+                    <path d="M 35 50 Q 48 38, 52 22 Q 40 28, 35 42 Z" class="plan-decor__plant-leaf"/>
+                    <path d="M 35 48 Q 35 30, 30 14 Q 38 22, 38 40 Z" class="plan-decor__plant-stem"/>
+                  }
+                  @case ('pillar') {
+                    <circle cx="35" cy="35" r="22" class="plan-decor__base"/>
+                    <circle cx="35" cy="35" r="14" class="plan-decor__ring"/>
+                    <circle cx="35" cy="35" r="6"  class="plan-decor__dot"/>
+                  }
+                  @case ('door') {
+                    <rect x="14" y="6" width="42" height="58" rx="2" class="plan-decor__base"/>
+                    <rect x="20" y="12" width="30" height="22" rx="1.5" class="plan-decor__panel"/>
+                    <rect x="20" y="38" width="30" height="20" rx="1.5" class="plan-decor__panel"/>
+                    <circle cx="48" cy="40" r="2.4" class="plan-decor__accent"/>
+                  }
+                  @case ('window') {
+                    <rect x="6"   y="10" width="128" height="12" rx="2" class="plan-decor__base"/>
+                    <line x1="20" y1="16" x2="120" y2="16" class="plan-decor__line"/>
+                    <line x1="70" y1="10" x2="70"  y2="22" class="plan-decor__line"/>
+                    <rect x="0"   y="6" width="6" height="20" class="plan-decor__window-frame"/>
+                    <rect x="134" y="6" width="6" height="20" class="plan-decor__window-frame"/>
+                  }
+                  @case ('wc') {
+                    <rect x="10" y="10" width="50" height="50" rx="6" class="plan-decor__base"/>
+                    <circle cx="35" cy="26" r="6" class="plan-decor__dot"/>
+                    <path d="M 25 50 Q 25 36, 35 36 Q 45 36, 45 50 Z" class="plan-decor__dot"/>
+                    <text x="35" y="58" text-anchor="middle" font-family="sans-serif" font-size="8" font-weight="700" class="plan-decor__label-text">WC</text>
+                  }
+                  @case ('stairs') {
+                    <rect x="8" y="10" width="54" height="50" rx="4" class="plan-decor__base"/>
+                    <line x1="8" y1="20" x2="62" y2="20" class="plan-decor__line"/>
+                    <line x1="8" y1="30" x2="62" y2="30" class="plan-decor__line"/>
+                    <line x1="8" y1="40" x2="62" y2="40" class="plan-decor__line"/>
+                    <line x1="8" y1="50" x2="62" y2="50" class="plan-decor__line"/>
+                    <path d="M 35 56 L 35 14 M 30 19 L 35 14 L 40 19" fill="none" class="plan-decor__accent-stroke"/>
+                  }
+                  @case ('entrance') {
+                    <rect x="8" y="10" width="54" height="50" rx="4" class="plan-decor__base"/>
+                    <path d="M 18 35 L 50 35 M 42 27 L 50 35 L 42 43" fill="none" class="plan-decor__accent-stroke"/>
+                    <line x1="56" y1="14" x2="56" y2="56" class="plan-decor__line"/>
+                  }
+                  @case ('coatrack') {
+                    <rect x="20" y="56" width="30" height="6" rx="2" class="plan-decor__base"/>
+                    <line x1="35" y1="56" x2="35" y2="14" class="plan-decor__line"/>
+                    <path d="M 35 14 Q 22 14, 22 22" fill="none" class="plan-decor__line-path"/>
+                    <path d="M 35 14 Q 48 14, 48 22" fill="none" class="plan-decor__line-path"/>
+                    <path d="M 35 18 Q 28 18, 28 24" fill="none" class="plan-decor__line-path"/>
+                    <path d="M 35 18 Q 42 18, 42 24" fill="none" class="plan-decor__line-path"/>
+                  }
+                  @case ('cashier') {
+                    <rect x="10" y="22" width="50" height="34" rx="4" class="plan-decor__base"/>
+                    <rect x="22" y="10" width="26" height="14" rx="3" class="plan-decor__base"/>
+                    <line x1="26" y1="17" x2="44" y2="17" class="plan-decor__accent"/>
+                  }
+                  @case ('bar') {
+                    <rect x="6" y="14" width="128" height="32" rx="4" class="plan-decor__base"/>
+                    <line x1="6" y1="22" x2="134" y2="22" class="plan-decor__line"/>
+                    <circle cx="20"  cy="60" r="5" class="plan-decor__dot"/>
+                    <circle cx="50"  cy="60" r="5" class="plan-decor__dot"/>
+                    <circle cx="80"  cy="60" r="5" class="plan-decor__dot"/>
+                    <circle cx="110" cy="60" r="5" class="plan-decor__dot"/>
+                  }
+                  @case ('stage') {
+                    <rect x="6" y="14" width="128" height="42" rx="4" class="plan-decor__base"/>
+                    <line x1="20" y1="56" x2="120" y2="56" class="plan-decor__line"/>
+                    <path d="M 6 14 Q 14 18, 22 14 M 22 14 Q 30 18, 38 14 M 102 14 Q 110 18, 118 14 M 118 14 Q 126 18, 134 14" fill="none" class="plan-decor__accent-stroke"/>
+                    <circle cx="70" cy="35" r="3" class="plan-decor__accent"/>
+                    <line x1="70" y1="38" x2="70" y2="50" class="plan-decor__accent"/>
+                  }
+                  @case ('sofa') {
+                    <rect x="6" y="10" width="128" height="14" rx="6" class="plan-decor__base"/>
+                    <rect x="6" y="28" width="128" height="32" rx="6" class="plan-decor__base"/>
+                    <rect x="6" y="24" width="16" height="36" rx="4" class="plan-decor__base"/>
+                    <rect x="118" y="24" width="16" height="36" rx="4" class="plan-decor__base"/>
+                  }
+                }
+              </g>
+            }
+
+            <!-- ── Alle Tische (suitable = klickbar, andere = ausgegraut) ── -->
+            @for (t of venueTables(); track t.id) {
+              @let tw = t.type === 'long' ? 140 * t.scale : 70 * t.scale;
+              @let th = 70 * t.scale;
+              @let isSelected = selectedTableId() === t.id;
+              @let isSuitable = suitableTables().includes(t);
+              @if (t.type === 'round') {
+                <circle
+                  [attr.cx]="t.x + tw / 2"
+                  [attr.cy]="t.y + th / 2"
+                  [attr.r]="tw / 2"
+                  class="plan-table plan-table--round"
+                  [class.is-selected]="isSelected"
+                  [class.is-dimmed]="!isSuitable"
+                  (click)="isSuitable ? selectTable(t.id) : null" />
+                <text [attr.x]="t.x + tw / 2" [attr.y]="t.y + th / 2 + 5"
+                      class="plan-table__label"
+                      [class.is-dimmed]="!isSuitable"
+                      text-anchor="middle">
+                  {{ t.seats }}P
+                </text>
+              } @else {
+                <rect
+                  [attr.x]="t.x"
+                  [attr.y]="t.y"
+                  [attr.width]="tw"
+                  [attr.height]="th"
+                  [attr.rx]="6"
+                  class="plan-table plan-table--rect"
+                  [class.is-selected]="isSelected"
+                  [class.is-dimmed]="!isSuitable"
+                  (click)="isSuitable ? selectTable(t.id) : null" />
+                <text [attr.x]="t.x + tw / 2" [attr.y]="t.y + th / 2 + 5"
+                      class="plan-table__label"
+                      [class.is-dimmed]="!isSuitable"
+                      text-anchor="middle">
+                  {{ t.seats }}P
+                </text>
+              }
+            }
+          </svg>
+        </div>
+
+      </div>
+    }
+
+    @if (menuOpen()) {
+      <div class="widget-menu-overlay" (click)="menuOpen.set(false)">
+        <div class="widget-menu-overlay__box" (click)="$event.stopPropagation()">
+          <div class="widget-menu-overlay__header">
+            <span>🍽 Speisekarte</span>
+            <button type="button" class="widget-menu-overlay__close" (click)="menuOpen.set(false)">✕</button>
+          </div>
+          @if (speisekarteUrl()) {
+            <iframe class="widget-menu-overlay__frame"
+                    [src]="safeMenuUrl()"
+                    title="Speisekarte"
+                    frameborder="0"></iframe>
+          } @else {
+            <div class="widget-menu-overlay__empty">
+              @if (speisekartePdfName()) {
+                <span>„{{ speisekartePdfName() }}" — bitte die Datei im Admin-Bereich erneut hochladen und speichern.</span>
+              } @else {
+                <span>Keine Speisekarte hinterlegt. Bitte im Admin-Bereich eine PDF hochladen oder URL eintragen.</span>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+
+  }
+</div>

@@ -6,12 +6,16 @@ namespace App\Api\Controller\Admin;
 
 use App\Module\Reservation\Application\Command\AdminCancelReservation\AdminCancelReservationCommand;
 use App\Module\Reservation\Application\Command\AdminCancelReservation\AdminCancelReservationHandler;
+use App\Module\Reservation\Application\Command\CompleteReservation\CompleteReservationCommand;
+use App\Module\Reservation\Application\Command\CompleteReservation\CompleteReservationHandler;
 use App\Module\Reservation\Application\Command\ConfirmReservation\ConfirmReservationCommand;
 use App\Module\Reservation\Application\Command\ConfirmReservation\ConfirmReservationHandler;
 use App\Module\Reservation\Application\Command\CreateReservation\CreateReservationCommand;
 use App\Module\Reservation\Application\Command\CreateReservation\CreateReservationHandler;
 use App\Module\Reservation\Application\Command\MarkNoShow\MarkNoShowCommand;
 use App\Module\Reservation\Application\Command\MarkNoShow\MarkNoShowHandler;
+use App\Module\Reservation\Application\Command\ReopenReservation\ReopenReservationCommand;
+use App\Module\Reservation\Application\Command\ReopenReservation\ReopenReservationHandler;
 use App\Module\Reservation\Application\Command\UpdateReservation\UpdateReservationCommand;
 use App\Module\Reservation\Application\Command\UpdateReservation\UpdateReservationHandler;
 use App\Module\Reservation\Application\Dto\ReservationDto;
@@ -19,9 +23,11 @@ use App\Module\Reservation\Application\Query\GetReservation\GetReservationHandle
 use App\Module\Reservation\Application\Query\GetReservation\GetReservationQuery;
 use App\Module\Reservation\Application\Query\ListReservations\ListReservationsHandler;
 use App\Module\Reservation\Application\Query\ListReservations\ListReservationsQuery;
+use App\Module\Reservation\Domain\Repository\ReservationRepositoryInterface;
 use App\Module\User\Domain\Entity\User;
 use App\Module\Venue\Domain\Entity\Venue;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Uid\Uuid;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -40,6 +46,9 @@ class ReservationController extends AbstractController
         private readonly CreateReservationHandler $createHandler,
         private readonly UpdateReservationHandler $updateHandler,
         private readonly AdminCancelReservationHandler $cancelHandler,
+        private readonly CompleteReservationHandler $completeHandler,
+        private readonly ReopenReservationHandler $reopenHandler,
+        private readonly ReservationRepositoryInterface $reservationRepo,
         private readonly EntityManagerInterface $em,
     ) {}
 
@@ -97,7 +106,9 @@ class ReservationController extends AbstractController
                 partySize:  max(1, (int) ($data['party_size'] ?? 1)),
                 startsAt:   $startsAt,
                 guestPhone: ($data['guest_phone'] ?? '') !== '' ? (string) $data['guest_phone'] : null,
-                guestNotes: ($data['notes'] ?? '') !== '' ? (string) $data['notes'] : null,
+                guestNotes:      ($data['notes'] ?? '') !== '' ? (string) $data['notes'] : null,
+                durationMinutes: isset($data['duration_minutes']) ? (int) $data['duration_minutes'] : null,
+                tableNumber:     isset($data['table_id'])         ? (int) $data['table_id']         : null,
             ));
         } catch (\DomainException $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
@@ -180,6 +191,12 @@ class ReservationController extends AbstractController
             }
         }
 
+        // table_id: null = unassign, int = assign, key absent = no change
+        $tableNumber = false;
+        if (array_key_exists('table_id', $data)) {
+            $tableNumber = $data['table_id'] === null ? null : (int) $data['table_id'];
+        }
+
         try {
             $reservation = ($this->updateHandler)(new UpdateReservationCommand(
                 reservationId:   $id,
@@ -190,6 +207,7 @@ class ReservationController extends AbstractController
                 durationMinutes: isset($data['duration_minutes']) ? (int) $data['duration_minutes'] : null,
                 guestPhone:      isset($data['guest_phone']) ? trim((string) $data['guest_phone']) : null,
                 guestNotes:      isset($data['notes']) ? trim((string) $data['notes']) : null,
+                tableNumber:     $tableNumber,
             ));
         } catch (\DomainException $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_NOT_FOUND);
@@ -263,6 +281,98 @@ class ReservationController extends AbstractController
         } catch (\DomainException $e) {
             return $this->json(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
+
+        return $this->json(ReservationDto::fromEntity($reservation)->toArray());
+    }
+
+    /**
+     * PATCH /api/v1/admin/reservations/{id}/complete
+     */
+    #[Route('/{id}/complete', name: 'admin_reservation_complete', methods: ['PATCH'])]
+    public function complete(string $id, #[CurrentUser] User $user): JsonResponse
+    {
+        $tenant = $user->getTenant();
+        if ($tenant === null) {
+            return $this->json(['error' => 'Kein Tenant zugewiesen.'], Response::HTTP_FORBIDDEN);
+        }
+
+        try {
+            $reservation = ($this->completeHandler)(new CompleteReservationCommand(
+                reservationId: $id,
+                tenantId:      $tenant->getId()->toRfc4122(),
+            ));
+        } catch (\DomainException $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return $this->json(ReservationDto::fromEntity($reservation)->toArray());
+    }
+
+    /**
+     * PATCH /api/v1/admin/reservations/{id}/reopen
+     */
+    #[Route('/{id}/reopen', name: 'admin_reservation_reopen', methods: ['PATCH'])]
+    public function reopen(string $id, #[CurrentUser] User $user): JsonResponse
+    {
+        $tenant = $user->getTenant();
+        if ($tenant === null) {
+            return $this->json(['error' => 'Kein Tenant zugewiesen.'], Response::HTTP_FORBIDDEN);
+        }
+
+        try {
+            $reservation = ($this->reopenHandler)(new ReopenReservationCommand(
+                reservationId: $id,
+                tenantId:      $tenant->getId()->toRfc4122(),
+            ));
+        } catch (\DomainException $e) {
+            return $this->json(['error' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return $this->json(ReservationDto::fromEntity($reservation)->toArray());
+    }
+
+    /**
+     * PATCH /api/v1/admin/reservations/{id}/seat
+     * Gast ist eingecheckt / sitzt am Tisch.
+     */
+    #[Route('/{id}/seat', name: 'admin_reservation_seat', methods: ['PATCH'])]
+    public function seat(string $id, #[CurrentUser] User $user): JsonResponse
+    {
+        $tenant = $user->getTenant();
+        if ($tenant === null) {
+            return $this->json(['error' => 'Kein Tenant zugewiesen.'], Response::HTTP_FORBIDDEN);
+        }
+
+        $reservation = $this->reservationRepo->findById(Uuid::fromString($id));
+        if ($reservation === null || $reservation->getVenue()->getTenant()->getId()->toRfc4122() !== $tenant->getId()->toRfc4122()) {
+            return $this->json(['error' => 'Reservierung nicht gefunden.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $reservation->seat();
+        $this->reservationRepo->save($reservation);
+
+        return $this->json(ReservationDto::fromEntity($reservation)->toArray());
+    }
+
+    /**
+     * PATCH /api/v1/admin/reservations/{id}/cleanup
+     * Besuch beendet, Tisch wird gerade gereinigt.
+     */
+    #[Route('/{id}/cleanup', name: 'admin_reservation_cleanup', methods: ['PATCH'])]
+    public function cleanup(string $id, #[CurrentUser] User $user): JsonResponse
+    {
+        $tenant = $user->getTenant();
+        if ($tenant === null) {
+            return $this->json(['error' => 'Kein Tenant zugewiesen.'], Response::HTTP_FORBIDDEN);
+        }
+
+        $reservation = $this->reservationRepo->findById(Uuid::fromString($id));
+        if ($reservation === null || $reservation->getVenue()->getTenant()->getId()->toRfc4122() !== $tenant->getId()->toRfc4122()) {
+            return $this->json(['error' => 'Reservierung nicht gefunden.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $reservation->startCleanup();
+        $this->reservationRepo->save($reservation);
 
         return $this->json(ReservationDto::fromEntity($reservation)->toArray());
     }

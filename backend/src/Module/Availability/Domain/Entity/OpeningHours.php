@@ -4,20 +4,21 @@ declare(strict_types=1);
 
 namespace App\Module\Availability\Domain\Entity;
 
-use App\Module\Venue\Domain\Entity\Venue;
+use App\Module\Availability\Infrastructure\Persistence\DoctrineOpeningHoursRepository;
+use App\Module\Tenant\Domain\Entity\Tenant;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Component\Uid\Uuid;
 
 /**
- * Öffnungszeiten eines Venues pro Wochentag.
- * Pro Venue + Wochentag gibt es genau einen Eintrag.
+ * Öffnungszeiten eines Tenants pro Wochentag (global, nicht pro Venue).
+ * Pro Tenant + Wochentag gibt es genau einen Eintrag.
  *
  * Wochentage: 0 = Montag, 1 = Dienstag, ..., 6 = Sonntag
  */
-#[ORM\Entity]
+#[ORM\Entity(repositoryClass: DoctrineOpeningHoursRepository::class)]
 #[ORM\Table(name: 'opening_hours')]
-#[ORM\UniqueConstraint(name: 'uq_venue_weekday', columns: ['venue_id', 'weekday'])]
+#[ORM\UniqueConstraint(name: 'uq_tenant_weekday', columns: ['tenant_id', 'weekday'])]
 class OpeningHours
 {
     #[ORM\Id]
@@ -26,7 +27,7 @@ class OpeningHours
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
-    private Venue $venue;
+    private Tenant $tenant;
 
     /**
      * 0 = Montag, 1 = Dienstag, 2 = Mittwoch,
@@ -54,7 +55,7 @@ class OpeningHours
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $breaks = null;
 
-    public function __construct(Venue $venue, int $weekday)
+    public function __construct(Tenant $tenant, int $weekday)
     {
         if ($weekday < 0 || $weekday > 6) {
             throw new \InvalidArgumentException(
@@ -63,7 +64,7 @@ class OpeningHours
         }
 
         $this->id = Uuid::v7();
-        $this->venue = $venue;
+        $this->tenant = $tenant;
         $this->weekday = $weekday;
     }
 
@@ -71,9 +72,9 @@ class OpeningHours
     {
         return $this->id;
     }
-    public function getVenue(): Venue
+    public function getTenant(): Tenant
     {
-        return $this->venue;
+        return $this->tenant;
     }
     public function getWeekday(): int
     {

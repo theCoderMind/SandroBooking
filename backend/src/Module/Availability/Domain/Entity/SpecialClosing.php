@@ -4,21 +4,17 @@ declare(strict_types=1);
 
 namespace App\Module\Availability\Domain\Entity;
 
-use App\Module\Venue\Domain\Entity\Venue;
+use App\Module\Availability\Infrastructure\Persistence\DoctrineSpecialClosingRepository;
+use App\Module\Tenant\Domain\Entity\Tenant;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Component\Uid\Uuid;
 
 /**
- * Sonderöffnungszeiten oder Schliessungen für einen bestimmten Tag.
+ * Sonderöffnungszeiten oder Schliessungen für einen bestimmten Tag (global, nicht pro Venue).
  * Überschreibt die regulären OpeningHours für diesen Tag.
- *
- * Beispiele:
- * - Weihnachten: komplett geschlossen
- * - Silvester: nur von 18:00 - 23:00 geöffnet
- * - Betriebsferien: 01.08 - 14.08 geschlossen
  */
-#[ORM\Entity]
+#[ORM\Entity(repositoryClass: DoctrineSpecialClosingRepository::class)]
 #[ORM\Table(name: 'special_closings')]
 class SpecialClosing
 {
@@ -28,7 +24,7 @@ class SpecialClosing
 
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
-    private Venue $venue;
+    private Tenant $tenant;
 
     /** Erster Tag der Schliessung */
     #[ORM\Column(type: 'date_immutable')]
@@ -47,8 +43,8 @@ class SpecialClosing
 
     /**
      * Komplett geschlossen oder nur geänderte Öffnungszeiten?
-     * true  = das Venue ist an diesen Tagen komplett zu
-     * false = das Venue hat abweichende Öffnungszeiten (siehe openTime/closeTime)
+     * true  = der Tenant ist an diesen Tagen komplett zu
+     * false = der Tenant hat abweichende Öffnungszeiten (siehe openTime/closeTime)
      */
     #[ORM\Column(options: ['default' => true])]
     private bool $fullDay = true;
@@ -65,7 +61,7 @@ class SpecialClosing
     private \DateTimeImmutable $createdAt;
 
     public function __construct(
-        Venue $venue,
+        Tenant $tenant,
         \DateTimeImmutable $dateFrom,
         \DateTimeImmutable $dateTo,
         ?string $reason = null,
@@ -78,7 +74,7 @@ class SpecialClosing
         }
 
         $this->id = Uuid::v7();
-        $this->venue = $venue;
+        $this->tenant = $tenant;
         $this->dateFrom = $dateFrom;
         $this->dateTo = $dateTo;
         $this->reason = $reason;
@@ -90,9 +86,9 @@ class SpecialClosing
     {
         return $this->id;
     }
-    public function getVenue(): Venue
+    public function getTenant(): Tenant
     {
-        return $this->venue;
+        return $this->tenant;
     }
     public function getDateFrom(): \DateTimeImmutable
     {

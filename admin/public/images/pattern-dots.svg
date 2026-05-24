@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+  <!-- Lyandro Booking — Subtiles Hintergrund-Pattern
+       Tile per CSS:  background: url('/images/pattern-dots.svg') repeat;
+       Funktioniert auf hellem & dunklem BG (sehr niedrige Opazität).
+       Original artwork. -->
+  <circle cx="10" cy="10" r="1.2" fill="#2979ff" fill-opacity="0.18"/>
+  <circle cx="30" cy="30" r="1.2" fill="#ffb700" fill-opacity="0.18"/>
+</svg>

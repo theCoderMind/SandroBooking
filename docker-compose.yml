@@ -103,6 +103,25 @@ services:
     networks:
       - lysandro
 
+  # ─── Erinnerungs-Mails Scheduler (alle 5 Minuten) ───────────────────────────
+  reminder_scheduler:
+    image: lydandrobooking-messenger_worker
+    container_name: lysandro_reminder_scheduler
+    command: ["sh", "-c", "while true; do php /var/www/backend/bin/console app:send-reminder-emails; sleep 300; done"]
+    volumes:
+      - ./backend:/var/www/backend
+    environment:
+      APP_ENV: dev
+      DATABASE_URL: "mysql://lysandro:secret@mysql:3306/lysandro?serverVersion=8.0"
+      MESSENGER_TRANSPORT_DSN: "redis://redis:6379/messages"
+      MAILER_DSN: "smtp://mailpit:1025"
+    depends_on:
+      - php
+      - redis
+    restart: unless-stopped
+    networks:
+      - lysandro
+
   # ─── Symfony Messenger Worker ────────────────────────────────────────────────
   messenger_worker:
     build:

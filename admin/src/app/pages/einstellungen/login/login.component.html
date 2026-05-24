@@ -1,1 +1,87 @@
-<p>login works!</p>
+<!-- Header -->
+<div class="settings-block">
+  <div class="page-hero">
+    <div class="page-hero__icon"><mat-icon>lock</mat-icon></div>
+    <div>
+      <h2 class="page-hero__title">{{ 'login_settings.title' | translate }}</h2>
+      <p class="page-hero__sub">{{ 'login_settings.subtitle' | translate }}</p>
+    </div>
+  </div>
+</div>
+
+<!-- Session-Dauer -->
+<div class="settings-block">
+
+  <div class="section-header">
+    <mat-icon>timer</mat-icon>
+    <h3 class="section-title">{{ 'login_settings.session_title' | translate }}</h3>
+  </div>
+  <p class="section-desc" [innerHTML]="'login_settings.session_desc' | translate"></p>
+
+  <div class="session-options">
+    @for (opt of sessionOptions; track opt.seconds) {
+      <button
+        class="session-card"
+        [class.session-card--active]="selectedTtl() === opt.seconds"
+        (click)="selectedTtl.set(opt.seconds)">
+        <mat-icon class="session-card__icon">
+          {{ opt.seconds <= 3600 ? 'hourglass_top' : opt.seconds <= 86400 ? 'schedule' : 'calendar_month' }}
+        </mat-icon>
+        <span class="session-card__label">{{ opt.labelKey | translate }}</span>
+        @if (selectedTtl() === opt.seconds) {
+          <mat-icon class="session-card__check">check_circle</mat-icon>
+        }
+      </button>
+    }
+  </div>
+
+  <div class="session-info">
+    <mat-icon>info_outline</mat-icon>
+    <div>
+      <strong>{{ 'login_settings.current_label' | translate }} {{ currentLabel() }}</strong>
+      <p>{{ 'login_settings.session_hint' | translate }}</p>
+    </div>
+  </div>
+
+  @if (needsRelogin()) {
+    <div class="relogin-hint">
+      <mat-icon>info</mat-icon>
+      <div class="relogin-hint__text">
+        <strong>{{ 'login_settings.relogin_title' | translate }}</strong>
+        {{ 'login_settings.relogin_text' | translate }}
+      </div>
+      <button class="relogin-hint__btn" (click)="relogin()">
+        <mat-icon>logout</mat-icon>
+        {{ 'login_settings.relogin_btn' | translate }}
+      </button>
+    </div>
+  }
+
+  @if (error()) {
+    <div class="settings-error">
+      <mat-icon>error_outline</mat-icon>
+      {{ error() }}
+    </div>
+  }
+
+  <div class="actions">
+    <button
+      class="save-button"
+      [class.save-button--saved]="saved()"
+      [class.save-button--loading]="saving()"
+      [disabled]="saving()"
+      (click)="save()">
+      @if (saving()) {
+        <mat-icon class="spin">sync</mat-icon>
+        {{ 'common.saving' | translate }}
+      } @else if (saved()) {
+        <mat-icon>check</mat-icon>
+        {{ 'common.saved' | translate }}
+      } @else {
+        <mat-icon>save</mat-icon>
+        {{ 'common.save' | translate }}
+      }
+    </button>
+  </div>
+
+</div>

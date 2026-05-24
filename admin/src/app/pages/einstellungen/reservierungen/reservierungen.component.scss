@@ -1,0 +1,597 @@
+// ===========================================================================
+//  Reservierungs-Zeiten — Einstellungs-Seite
+//  Visuell identisch mit Widget-Einstellungen:
+//  • linksbündiger Aufbau (kein margin: auto)
+//  • Info-Button oben rechts in jeder Section
+//  • Speichern-Button als Ghost/Outline wie in Widget-Einstellungen
+// ===========================================================================
+
+:host { display: block; }
+
+// ── Äußerer Wrapper (analog .settings-container in widget-einstellungen) ──
+.settings-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: 1100px;
+}
+
+// ── Settings-Block (eine Card pro Section) ────────────────────────────────
+.settings-block {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 16px;
+  color: var(--color-text);
+}
+
+// ── Section Header ────────────────────────────────────────────────────────
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--color-primary);
+}
+
+// ── Icon-Wrap farbige Box (primary / accent / warning / info) ─────────────
+.section-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  flex-shrink: 0;
+
+  mat-icon { font-size: 19px; width: 19px; height: 19px; }
+
+  &--primary {
+    background: rgba(var(--color-primary-rgb), 0.12);
+    color: var(--color-primary);
+  }
+  &--accent {
+    background: rgba(var(--color-accent-rgb), 0.18);
+    color: var(--color-accent-dark);
+  }
+  &--warning {
+    background: rgba(251, 146, 60, 0.18);
+    color: #fb923c;
+  }
+  &--info {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+  }
+  &--danger {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+  }
+}
+
+// ── Section Subtitle ──────────────────────────────────────────────────────
+.section-subtitle {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(var(--color-text-rgb), 0.6);
+  margin: 0 0 14px;
+
+  strong { color: var(--color-text); font-weight: 600; }
+}
+
+// ── Section Header Right (Info-Button + ggf. Toggle) ─────────────────────
+.section-header__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+// ── Info-Button — 1:1 aus widget-einstellungen ────────────────────────────
+.info-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent);
+  padding: 6px;
+  border-radius: 50%;
+  transition: 0.2s;
+  flex-shrink: 0;
+
+  mat-icon { font-size: 20px; }
+
+  &:hover { background: rgba(var(--color-accent-rgb), 0.10); transform: scale(1.05); }
+  &.active { background: rgba(var(--color-accent-rgb), 0.15); }
+}
+
+// ── Info-Box (aufklappbar, identisch mit widget-einstellungen) ────────────
+.info-box {
+  background: rgba(var(--color-primary-rgb), 0.08);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.20);
+  color: rgba(var(--color-text-rgb), 0.8);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: max-height 0.25s ease, opacity 0.25s ease, transform 0.25s ease, margin-bottom 0.25s ease;
+
+  strong { color: var(--color-text); font-weight: 600; }
+
+  &.open {
+    max-height: 300px;
+    opacity: 1;
+    transform: translateY(0);
+    margin-bottom: 4px;
+  }
+}
+
+// ── Status-Hint (aktiv / inaktiv) ─────────────────────────────────────────
+.status-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(var(--color-text-rgb), 0.5);
+  margin: 10px 0 4px;
+  transition: color 0.2s;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+  &--active { color: var(--color-success); }
+}
+
+// ── Block disabled (preset/input wenn Toggle aus) ─────────────────────────
+.block--disabled {
+  opacity: 0.38;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+// ── Preset-Chips ──────────────────────────────────────────────────────────
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.preset-chip {
+  appearance: none;
+  border: 1px solid var(--color-border);
+  background: rgba(var(--color-text-rgb), 0.03);
+  color: var(--color-text);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+
+  &:hover {
+    background: rgba(var(--color-text-rgb), 0.07);
+    border-color: rgba(var(--color-text-rgb), 0.2);
+  }
+
+  &.active {
+    background: rgba(var(--color-primary-rgb), 0.15);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  &--accent.active {
+    background: rgba(var(--color-accent-rgb), 0.15);
+    border-color: var(--color-accent);
+    color: var(--color-accent-dark);
+    font-weight: 600;
+  }
+
+  &--danger.active {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.35);
+  }
+}
+
+// ── Field Label ───────────────────────────────────────────────────────────
+.field-label {
+  font-size: 12.5px;
+  color: rgba(var(--color-text-rgb), 0.6);
+  margin: 0 0 10px;
+}
+
+// ── Time-Cards (Getränke-Erinnerung) ─────────────────────────────────────
+.time-card-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.time-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 56px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: rgba(var(--color-text-rgb), 0.03);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s, box-shadow 0.15s;
+
+  &__val {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__unit {
+    font-size: 10px;
+    color: rgba(var(--color-text-rgb), 0.5);
+    font-weight: 500;
+    margin-top: 2px;
+  }
+
+  &:hover {
+    background: rgba(56, 189, 248, 0.08);
+    border-color: rgba(56, 189, 248, 0.3);
+    transform: translateY(-1px);
+  }
+
+  &--active {
+    background: rgba(56, 189, 248, 0.14);
+    border-color: rgba(56, 189, 248, 0.6);
+    box-shadow: 0 2px 10px rgba(56, 189, 248, 0.25);
+
+    .time-card__val { color: #38bdf8; }
+    .time-card__unit { color: rgba(56, 189, 248, 0.7); }
+  }
+}
+
+// ── Custom-Input (Zahl + Einheit) ─────────────────────────────────────────
+.custom-input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 220px;
+
+  &__label {
+    font-size: 12px;
+    color: rgba(var(--color-text-rgb), 0.6);
+    font-weight: 500;
+  }
+
+  &__field {
+    display: flex;
+    align-items: center;
+    background: rgba(var(--color-text-rgb), 0.04);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 4px 12px;
+    transition: border-color 0.15s, background 0.15s;
+
+    &:focus-within {
+      border-color: var(--color-primary);
+      background: var(--color-surface);
+    }
+  }
+
+  input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--color-text);
+    font-size: 14px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    padding: 8px 0;
+    min-width: 0;
+
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button { opacity: 0.5; }
+  }
+
+  &__unit {
+    font-size: 12px;
+    color: rgba(var(--color-text-rgb), 0.5);
+    margin-left: 6px;
+  }
+}
+
+// ── Toggle Switch (identisch mit widget-einstellungen) ────────────────────
+.toggle {
+  position: relative;
+  display: inline-flex;
+  cursor: pointer;
+  flex-shrink: 0;
+
+  input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+  &__track {
+    width: 44px;
+    height: 24px;
+    background: rgba(var(--color-text-rgb), 0.12);
+    border-radius: 99px;
+    transition: background 0.2s;
+    position: relative;
+  }
+
+  &__thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+    transition: transform 0.2s;
+  }
+
+  input:checked ~ .toggle__track {
+    background: rgba(var(--color-primary-rgb), 0.35);
+  }
+
+  input:checked ~ .toggle__track .toggle__thumb {
+    transform: translateX(20px);
+    background: var(--color-primary);
+    box-shadow: 0 1px 6px rgba(var(--color-primary-rgb), 0.6);
+  }
+}
+
+// ── Preview-Block (Zeitstrahl) ─────────────────────────────────────────────
+.preview-block {
+  background: linear-gradient(
+    135deg,
+    rgba(var(--color-primary-rgb), 0.06) 0%,
+    rgba(var(--color-accent-rgb), 0.04) 100%
+  );
+  border: 1px dashed rgba(var(--color-primary-rgb), 0.3);
+}
+
+.preview-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: rgba(var(--color-text-rgb), 0.75);
+  margin-top: 4px;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; color: var(--color-success); }
+
+  strong {
+    color: var(--color-text);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// ── Timeline ──────────────────────────────────────────────────────────────
+.timeline {
+  display: flex;
+  width: 100%;
+  height: 64px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  margin: 10px 0;
+
+  &__segment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    color: #fff;
+    text-align: center;
+    overflow: hidden;
+    transition: flex 0.25s;
+
+    &--reservation {
+      background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    }
+
+    &--cleanup {
+      background: repeating-linear-gradient(
+        45deg,
+        rgba(var(--color-accent-rgb), 0.85),
+        rgba(var(--color-accent-rgb), 0.85) 8px,
+        rgba(var(--color-accent-dark-rgb), 0.85) 8px,
+        rgba(var(--color-accent-dark-rgb), 0.85) 16px
+      );
+      color: #1a1a1a;
+    }
+  }
+
+  &__label {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 11px;
+    line-height: 1.2;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
+
+    strong { font-size: 12px; font-weight: 700; }
+  }
+
+  &__minutes {
+    font-size: 10px;
+    opacity: 0.85;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// ── Actions (Speichern-Zeile) — identisch mit widget-einstellungen ─────────
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
+  margin-top: 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+// ── Speichern-Button — Ghost/Outline wie widget-einstellungen ─────────────
+.save-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 22px;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--color-primary-rgb), 0.55);
+  background: rgba(var(--color-primary-rgb), 0.10);
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(var(--color-primary-rgb), 0.18),
+              inset 0 0 0 1px rgba(var(--color-primary-rgb), 0.08);
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: var(--color-primary);
+    background: rgba(var(--color-primary-rgb), 0.16);
+    box-shadow: 0 0 16px rgba(var(--color-primary-rgb), 0.30),
+                inset 0 0 0 1px rgba(var(--color-primary-rgb), 0.12);
+  }
+
+  &.saved {
+    border-color: rgba(var(--color-success-rgb), 0.55);
+    background: rgba(var(--color-success-rgb), 0.10);
+    color: var(--color-success);
+    box-shadow: 0 0 10px rgba(var(--color-success-rgb), 0.18),
+                inset 0 0 0 1px rgba(var(--color-success-rgb), 0.08);
+  }
+}
+
+// ── Footer-Aktionen (Auf Standard zurücksetzen) ───────────────────────────
+.footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+
+.ghost-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  color: rgba(var(--color-text-rgb), 0.7);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+  &:hover {
+    background: rgba(var(--color-text-rgb), 0.05);
+    color: var(--color-text);
+  }
+}
+
+// ── VIP-Schwelle ──────────────────────────────────────────────────────────
+.section-icon-wrap--vip {
+  background: rgba(167, 139, 250, 0.15);
+  color: #a78bfa;
+}
+
+.preset-chip--vip {
+  &.active {
+    background: rgba(167, 139, 250, 0.18);
+    border-color: #a78bfa;
+    color: #a78bfa;
+    box-shadow: 0 0 8px rgba(167, 139, 250, 0.25);
+  }
+}
+
+.vip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.vip-custom-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(var(--color-text-rgb), 0.03);
+  transition: border-color .15s, background .15s;
+  cursor: text;
+
+  &:focus-within {
+    border-color: #a78bfa;
+    background: rgba(167, 139, 250, .06);
+  }
+
+  input {
+    width: 46px;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--color-text);
+    text-align: center;
+    padding: 7px 4px 7px 12px;
+    -moz-appearance: textfield;
+
+    &::-webkit-inner-spin-button,
+    &::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+    &::placeholder { color: rgba(var(--color-text-rgb), .3); font-weight: 400; }
+  }
+
+  &__unit {
+    font-size: 12px;
+    color: rgba(var(--color-text-rgb), .5);
+    padding: 7px 12px 7px 4px;
+    white-space: nowrap;
+  }
+}
+
+// ── Responsive ────────────────────────────────────────────────────────────
+@media (max-width: 600px) {
+  .settings-block { padding: 16px; }
+
+  .actions { padding-top: 12px; }
+
+  .preset-chip { padding: 6px 12px; font-size: 12px; }
+
+  .time-card { width: 52px; height: 50px; }
+}

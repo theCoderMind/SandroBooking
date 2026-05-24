@@ -4,11 +4,13 @@ import { DatePipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { LayoutService } from '../layout.service';
+import { NotizFloatComponent } from '../../shared/notiz-float/notiz-float.component';
+import { GetraenkeFloatComponent } from '../../shared/getraenke-float/getraenke-float.component';
 
 @Component({
   selector: 'app-admin-layout',
   standalone: true,
-  imports: [RouterOutlet, SidebarComponent, MatIconModule, DatePipe],
+  imports: [RouterOutlet, SidebarComponent, MatIconModule, DatePipe, NotizFloatComponent, GetraenkeFloatComponent],
   templateUrl: './admin-layout.component.html',
   styleUrl: './admin-layout.component.scss'
 })

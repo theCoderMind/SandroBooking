@@ -16,6 +16,17 @@ export class ReservationsService {
   readonly total        = computed(() => this._total());
   readonly loading      = computed(() => this._loading());
 
+  loadForExport(params: { status?: string; dateFrom?: string; dateTo?: string } = {}): Observable<Reservation[]> {
+    let qp = new HttpParams().set('limit', '2000');
+    if (params.status)   qp = qp.set('status',    params.status);
+    if (params.dateFrom) qp = qp.set('date_from',  params.dateFrom);
+    if (params.dateTo)   qp = qp.set('date_to',    params.dateTo);
+    return this.http.get<ReservationListResponse>(this.base, { params: qp }).pipe(
+      map(res => res.reservations),
+      catchError(() => of([])),
+    );
+  }
+
   load(params: { status?: string; date?: string; limit?: number; offset?: number } = {}): Observable<ReservationListResponse> {
     this._loading.set(true);
 
@@ -56,6 +67,18 @@ export class ReservationsService {
     );
   }
 
+  complete(id: string): Observable<Reservation> {
+    return this.http.patch<Reservation>(`${this.base}/${id}/complete`, {}).pipe(
+      tap(updated => this._reservations.update(rs => rs.map(r => r.id === id ? updated : r))),
+    );
+  }
+
+  reopen(id: string): Observable<Reservation> {
+    return this.http.patch<Reservation>(`${this.base}/${id}/reopen`, {}).pipe(
+      tap(updated => this._reservations.update(rs => rs.map(r => r.id === id ? updated : r))),
+    );
+  }
+
   update(id: string, payload: {
     guest_name?: string;
     party_size?: number;
@@ -63,6 +86,8 @@ export class ReservationsService {
     duration_minutes?: number;
     guest_phone?: string;
     notes?: string;
+    /** null = Tisch entziehen, number = Tisch zuweisen */
+    table_id?: number | null;
   }): Observable<Reservation> {
     return this.http.patch<Reservation>(`${this.base}/${id}`, payload).pipe(
       tap(updated => this._reservations.update(rs => rs.map(r => r.id === id ? updated : r))),
@@ -85,6 +110,8 @@ export class ReservationsService {
     party_size: number;
     starts_at: string;
     notes?: string;
+    duration_minutes?: number;
+    table_id?: number;
   }): Observable<Reservation> {
     return this.http.post<Reservation>(this.base, payload);
   }
