@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker exec *)",
+      "Bash(npx tsc *)",
+      "Bash(xargs cat -n)",
+      "Bash(php bin/console doctrine:migrations:status)",
+      "Bash(curl *)",
+      "Bash(node *)",
+      "Bash(xargs ls -la)",
+      "Bash(python3 -m json.tool)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('widgetFunctional:', json.dumps\\(d.get\\('widgetFunctional'\\), indent=2\\)\\); print\\('widgetDesign keys:', list\\(d.get\\('widgetDesign', {}\\).keys\\(\\)\\)\\)\")",
+      "Bash(xargs cat)",
+      "Bash(php *)",
+      "Bash(xargs ls)",
+      "Bash(docker compose *)",
+      "Read(//mnt/wsl/docker-desktop/shared-sockets/guest-services/**)",
+      "Read(//run/**)"
+    ]
+  }
+}
